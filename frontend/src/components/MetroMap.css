@@ -1,0 +1,25 @@
+.metro-map {
+  display: block;
+  width: 100%;
+  max-width: 900px;
+  height: auto;
+  margin: 0 auto;
+  padding: 1.5rem;
+  background: #ffffff;
+  border-radius: 1rem;
+  box-shadow: 0 1rem 3rem rgb(15 23 42 / 12%);
+}
+
+.station circle {
+  fill: #ffffff;
+  stroke: #172033;
+  stroke-width: 4;
+}
+
+.station text {
+  fill: #172033;
+  font-size: 14px;
+  font-weight: 600;
+  text-anchor: middle;
+  user-select: none;
+}
