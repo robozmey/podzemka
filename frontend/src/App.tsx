@@ -47,22 +47,31 @@ function App() {
 
   return (
     <main className="app">
-      <section>
-        <label htmlFor="city-select">Город</label>
-        <select
-          id="city-select"
-          value={citySlug}
-          onChange={(event) => setCitySlug(event.target.value)}
-          disabled={cities.length === 0}
-        >
-          {cities.map((city) => (
-            <option key={city.id} value={city.slug}>
-              {city.name}
-            </option>
-          ))}
-        </select>
 
-        <h1>{schema ? `Схема метро: ${schema.city.name}` : 'Схема метро'}</h1>
+      
+      <section>
+        <header className="map-header">
+          <h1>Схема метро</h1>
+
+          <div className="city-picker">
+            <label htmlFor="city-select">Город</label>
+            <div className="city-picker__control">
+              <select
+                id="city-select"
+                value={citySlug}
+                onChange={(event) => setCitySlug(event.target.value)}
+                disabled={cities.length === 0}
+              >
+                {cities.map((city) => (
+                  <option key={city.id} value={city.slug}>
+                    {city.name}
+                  </option>
+                ))}
+              </select>
+            </div>
+          </div>
+        </header>
+
         {error && <p className="message message--error">{error}</p>}
         {!schema && !error && <p className="message">Загрузка схемы...</p>}
         {schema && <MetroMap schema={schema} />}
