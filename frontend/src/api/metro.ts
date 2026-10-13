@@ -1,4 +1,4 @@
-import type { MetroSchema } from '../types/metro'
+import type { City, MetroSchema } from '../types/metro'
 
 export async function getMetroSchema(
   citySlug: string,
@@ -11,4 +11,14 @@ export async function getMetroSchema(
   }
 
   return response.json() as Promise<MetroSchema>
+}
+
+export async function getCities(signal?: AbortSignal): Promise<City[]> {
+  const response = await fetch('/api/cities', { signal })
+
+  if (!response.ok) {
+    throw new Error('Не удалось загрузить список городов')
+  }
+
+  return response.json() as Promise<City[]>
 }
