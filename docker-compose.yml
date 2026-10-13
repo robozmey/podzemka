@@ -1,0 +1,22 @@
+services:
+  db:
+    image: postgres:16-alpine
+    container_name: podzemka-postgres
+    environment:
+      POSTGRES_DB: podzemka
+      POSTGRES_USER: podzemka
+      POSTGRES_PASSWORD: podzemka
+    ports:
+      - "5433:5432"
+    volumes:
+      - podzemka-postgres-data:/var/lib/postgresql/data
+      - ./backend/migrations:/migrations:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U podzemka -d podzemka"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 5s
+
+volumes:
+  podzemka-postgres-data:
