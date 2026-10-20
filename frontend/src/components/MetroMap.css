@@ -30,7 +30,7 @@
   height: 130px;
   padding: 14px;
   overflow: auto;
-  border: 1px solid #cbd5d1;
+  border: 1px solid #fff;
   border-radius: 6px;
   background: #fff;
   color: #172033;
@@ -40,4 +40,39 @@
 
 .station__tooltip-content p {
   margin: 8px 0 0;
+}
+.metro-map-layout {
+  display: flex;
+  align-items: flex-start;
+  gap: 1rem;
+  width: 100%;
+  min-width: 0;
+}
+
+.metro-map-layout > .year-timeline {
+  flex: 0 0 220px;
+}
+
+.metro-map-layout > .metro-map {
+  flex: 1 1 0;
+  min-width: 0;
+  width: 100%;
+  max-width: 900px;
+  margin: 0;
+  box-sizing: border-box;
+}
+
+@media (max-width: 700px) {
+  .metro-map-layout {
+    flex-direction: column;
+  }
+
+  .metro-map-layout > .year-timeline {
+    width: 100%;
+    flex-basis: auto;
+  }
+
+  .metro-map-layout > .metro-map {
+    width: 100%;
+  }
 }
