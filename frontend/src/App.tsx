@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import { getCities, getMetroSchema } from './api/metro'
 import { MetroMap } from './components/MetroMap'
 import type { City, MetroSchema } from './types/metro'
+import type { MetroCitySlug } from './components/YearTimeline'
 import './styles/App.css'
 
 function App() {
@@ -48,7 +49,7 @@ function App() {
   return (
     <main className="app">
 
-      
+
       <section>
         <header className="map-header">
           <h1>Схема метро</h1>
@@ -74,7 +75,12 @@ function App() {
 
         {error && <p className="message message--error">{error}</p>}
         {!schema && !error && <p className="message">Загрузка схемы...</p>}
-        {schema && <MetroMap schema={schema} />}
+        {schema && (
+          <MetroMap
+            schema={schema}
+            city={citySlug as MetroCitySlug}
+          />
+        )}
       </section>
     </main>
   )
