@@ -63,6 +63,17 @@ export function MetroMap({ schema, city }: MetroMapProps) {
         }}
         onPointerLeave={() => setHoveredStation(null)}
       >
+        {city === 'saint-petersburg' && (
+          <image
+            className="metro-map__background"
+            href="/maps/saint-petersburg-rivers.png"
+            x="0"
+            y="0"
+            width="700"
+            height="420"
+            preserveAspectRatio="xMidYMid slice"
+          />
+        )}
         {schema.lines.map((line) => {
           const stations = line.stations
             .map((stationId) => stationById.get(stationId))
