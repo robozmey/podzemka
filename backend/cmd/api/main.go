@@ -1,11 +1,15 @@
 package main
 
 import (
+	"embed"
 	"encoding/json"
 	"log"
 	"net/http"
 	"os"
 )
+
+//go:embed data/saint-petersburg-stations.json
+var saintPetersburgData embed.FS
 
 type city struct {
 	ID   int    `json:"id"`
@@ -18,6 +22,7 @@ type station struct {
 	Name string `json:"name"`
 	X    int    `json:"x"`
 	Y    int    `json:"y"`
+	Year int    `json:"year,omitempty"`
 }
 
 type metroLine struct {
@@ -40,23 +45,7 @@ var cities = []city{
 }
 
 var schemas = map[string]metroSchema{
-	"saint-petersburg": {
-		City: cities[0],
-		Stations: []station{
-			{ID: 1, Name: "Вокзальная", X: 90, Y: 210},
-			{ID: 2, Name: "Площадь Мира", X: 220, Y: 210},
-			{ID: 3, Name: "Невская", X: 350, Y: 210},
-			{ID: 4, Name: "Петроградская", X: 480, Y: 210},
-			{ID: 5, Name: "Северная", X: 610, Y: 210},
-			{ID: 6, Name: "Морская", X: 350, Y: 85},
-			{ID: 7, Name: "Адмиралтейская", X: 350, Y: 335},
-			{ID: 8, Name: "Набережная", X: 510, Y: 335},
-		},
-		Lines: []metroLine{
-			{ID: 1, Name: "Красная", Color: "#ef4444", Stations: []int{1, 2, 3, 4, 5}},
-			{ID: 2, Name: "Синяя", Color: "#3b82f6", Stations: []int{6, 3, 7, 8}},
-		},
-	},
+	"saint-petersburg": loadSaintPetersburgSchema(),
 	"moscow": {
 		City: cities[1],
 		Stations: []station{
@@ -91,6 +80,21 @@ var schemas = map[string]metroSchema{
 			{ID: 2, Name: "Енисейская", Color: "#f97316", Stations: []int{6, 3, 7, 8}},
 		},
 	},
+}
+
+func loadSaintPetersburgSchema() metroSchema {
+	data, err := saintPetersburgData.ReadFile("data/saint-petersburg-stations.json")
+	if err != nil {
+		log.Fatalf("read Saint Petersburg station data: %v", err)
+	}
+
+	var schema metroSchema
+	if err := json.Unmarshal(data, &schema); err != nil {
+		log.Fatalf("parse Saint Petersburg station data: %v", err)
+	}
+
+	schema.City = cities[0]
+	return schema
 }
 
 func main() {

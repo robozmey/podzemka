@@ -18,12 +18,12 @@
 .station circle {
   fill: #ffffff;
   stroke: #172033;
-  stroke-width: 4;
+  stroke-width: 0.8;
 }
 
 .station text {
   fill: #172033;
-  font-size: 14px;
+  font-size: 2.8px;
   font-weight: 600;
   text-anchor: middle;
   user-select: none;

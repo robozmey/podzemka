@@ -87,15 +87,15 @@ export function MetroMap({ schema, city }: MetroMapProps) {
               stroke={line.color}
               strokeLinecap="round"
               strokeLinejoin="round"
-              strokeWidth="12"
+              strokeWidth="2.4"
             />
           )
         })}
 
         {visibleStations.map((station) => (
           <g key={station.id} className="station" data-station-id={station.id}>
-            <circle cx={station.x} cy={station.y} r="10" />
-            <text x={station.x} y={station.y + 28}>{station.name}</text>
+            <circle cx={station.x} cy={station.y} r="2" />
+            <text x={station.x} y={station.y + 5.6}>{station.name}</text>
           </g>
         ))}
 

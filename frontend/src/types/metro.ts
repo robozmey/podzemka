@@ -7,7 +7,7 @@ export type City = {
 export type Station = {
   id: number
   name: string
-  year: number
+  year?: number
   x: number
   y: number
 }
