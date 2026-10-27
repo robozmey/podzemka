@@ -34,6 +34,9 @@
 }
 
 .year-timeline__scale {
+    flex: 1;
+    min-height: 280px;
+    height: auto;
     position: relative;
     height: clamp(280px, 52vh, 440px);
     margin-top: 18px;
