@@ -18,17 +18,17 @@ export const CITY_YEAR_RANGES: Record<
   "moscow": {
     label: "Москва",
     start: 1935,
-    end: 2024,
+    end: 2026,
   },
   "saint-petersburg": {
     label: "Санкт-Петербург",
     start: 1955,
-    end: 2024,
+    end: 2026,
   },
   "krasnoyarsk": {
     label: "Красноярск",
     start: 1983, // дата начала планирования
-    end: 2024,
+    end: 2026,
   },
 };
 
@@ -41,6 +41,13 @@ export const CITY_YEAR_MARKS: Record<
   ],
   "saint-petersburg": [
     { year: 1955, label: "Открытие метро" },
+    { year: 1961, label: "Открыта 2-я линия" },
+    { year: 1967, label: "Открыта 3-я линия" },
+    { year: 1978, label: "Открыто «Девяткино»" },
+    { year: 1985, label: "Открыта 4-я линия" },
+    { year: 1997, label: "Открыта 5-я линия" },
+    { year: 2008, label: "Продление на юг" },
+    { year: 2018, label: "Продление на запад" },
   ],
   "krasnoyarsk": [
     { year: 1983, label: "Принято постановление о строительстве" },
@@ -71,9 +78,6 @@ export default function YearTimeline({
 
   return (
     <aside className="year-timeline">
-      <div className="year-timeline__heading">
-        ВЫБОР ГОДА
-      </div>
 
       <div className="year-timeline__city">
         {range.label}

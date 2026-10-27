@@ -15,11 +15,11 @@ type MetroMapProps = {
 export function MetroMap({ schema, city }: MetroMapProps) {
   const [hoveredStation, setHoveredStation] = useState<Station | null>(null)
   const [selectedYear, setSelectedYear] = useState(
-    CITY_YEAR_RANGES[city].start,
+    CITY_YEAR_RANGES[city].end,
   )
 
   useEffect(() => {
-    setSelectedYear(CITY_YEAR_RANGES[city].start)
+    setSelectedYear(CITY_YEAR_RANGES[city].end)
     setHoveredStation(null)
   }, [city])
 

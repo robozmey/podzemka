@@ -48,7 +48,7 @@
 }
 .metro-map-layout {
   display: flex;
-  align-items: flex-start;
+  align-items: stretch;
   gap: 1rem;
   width: 100%;
   min-width: 0;
