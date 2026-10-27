@@ -20,7 +20,6 @@
 }
 
 .year-timeline__city {
-    margin-top: 18px;
     color: #172033;
     font-size: 17px;
 }
@@ -74,12 +73,12 @@
 }
 
 .year-timeline__mark--start {
-    transform: translateY(0);
+    transform: translateY(-30%);
 }
 
 .year-timeline__mark:hover,
 .year-timeline__mark:focus-visible {
-    color: #ffffff;
+    color: #c2413b;
 }
 
 .year-timeline__dot {

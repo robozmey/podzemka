@@ -78,9 +78,6 @@ export default function YearTimeline({
 
   return (
     <aside className="year-timeline">
-      <div className="year-timeline__heading">
-        ВЫБОР ГОДА
-      </div>
 
       <div className="year-timeline__city">
         {range.label}
