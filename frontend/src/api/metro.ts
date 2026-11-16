@@ -28,7 +28,9 @@ export async function createCity(
 ): Promise<void> {
   const response = await fetch('/api/cities', {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
+    headers: {
+      'Content-Type': 'application/json'
+    },
     body: JSON.stringify({ ...city, ...schema }),
     signal,
   })

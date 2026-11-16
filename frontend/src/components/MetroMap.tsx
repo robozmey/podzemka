@@ -1,8 +1,7 @@
 import { useEffect, useLayoutEffect, useRef, useState } from 'react'
 
 import YearTimeline, {
-  CITY_YEAR_RANGES,
-  type MetroCitySlug,
+  getCityTimeline,
 } from './YearTimeline'
 import type { MetroSchema, Station } from '../types/metro'
 import './MetroMap.css'
@@ -10,23 +9,23 @@ import { arrangeLabels, type LabelPlacement } from './labelLayout'
 
 type MetroMapProps = {
   schema: MetroSchema
-  city: MetroCitySlug
 }
 
-export function MetroMap({ schema, city }: MetroMapProps) {
+export function MetroMap({ schema }: MetroMapProps) {
+  const timeline = getCityTimeline(schema)
+  const { range } = timeline
   const [hoveredStation, setHoveredStation] = useState<Station | null>(null)
   const [selectedYear, setSelectedYear] = useState(
-    CITY_YEAR_RANGES[city].end,
+    range.end,
   )
   const svgRef = useRef<SVGSVGElement>(null)
   const [labelPlacements, setLabelPlacements] = useState<LabelPlacement[]>([])
 
   useEffect(() => {
-    setSelectedYear(CITY_YEAR_RANGES[city].end)
+    setSelectedYear(range.end)
     setHoveredStation(null)
-  }, [city])
+  }, [schema])
 
-  const range = CITY_YEAR_RANGES[city]
 
   const year = Math.max(
     range.start,
@@ -117,14 +116,16 @@ export function MetroMap({ schema, city }: MetroMapProps) {
   )
   return (
     <div className="metro-map-layout">
-      <YearTimeline
-        city={city}
-        year={year}
-        onYearChange={(nextYear: number) => {
-          setSelectedYear(nextYear)
-          setHoveredStation(null)
-        }}
-      />
+      {timeline.hasYears && (
+        <YearTimeline
+          timeline={timeline}
+          year={year}
+          onYearChange={(nextYear: number) => {
+            setSelectedYear(nextYear)
+            setHoveredStation(null)
+          }}
+        />
+      )}
 
       <svg
         ref={svgRef}
@@ -144,7 +145,7 @@ export function MetroMap({ schema, city }: MetroMapProps) {
         }}
         onPointerLeave={() => setHoveredStation(null)}
       >
-        {city === 'saint-petersburg' && (
+        {schema.city.slug === 'saint-petersburg' && (
           <image
             className="metro-map__background"
             href="/maps/saint-petersburg-rivers.png"

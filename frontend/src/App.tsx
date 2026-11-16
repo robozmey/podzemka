@@ -2,7 +2,6 @@ import { useEffect, useState, type FormEvent } from 'react'
 import { createCity, getCities, getMetroSchema, previewOverpassImport, type ImportPreview } from './api/metro'
 import { MetroMap } from './components/MetroMap'
 import type { City, MetroSchema } from './types/metro'
-import type { MetroCitySlug } from './components/YearTimeline'
 import './styles/App.css'
 
 function App() {
@@ -122,7 +121,7 @@ function App() {
 
         {error && <p className="message message--error">{error}</p>}
         {!schema && !error && <p className="message">Загрузка схемы...</p>}
-        {schema && <MetroMap schema={schema} city={citySlug as MetroCitySlug} />}
+        {schema && <MetroMap schema={schema} />}
       </section>
     </main>
   )

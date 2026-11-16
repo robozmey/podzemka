@@ -76,4 +76,4 @@ $body = @'
 Invoke-RestMethod -Method Post -Uri http://localhost:8080/api/cities -ContentType 'application/json' -Body $body
 ```
 
-Новый slug создаётся с ответом `201 Created`; существующий slug обновляется с `200 OK`. Некорректный JSON, slug или схема возвращают `400 Bad Request`. Схема проверяется по тем же правилам, что и при импорте JSON.
+Новый slug создаётся с ответом `201 Created`; Если город с указанным slug уже существует, API возвращает `409 Conflict` и не изменяет его схему. Некорректный JSON, slug или схема возвращают `400 Bad Request`. Схема проверяется по тем же правилам, что и при импорте JSON.

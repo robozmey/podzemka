@@ -7,6 +7,8 @@ import (
 	"os"
 	"time"
 
+	"github.com/joho/godotenv"
+
 	"github.com/robozmey/podzemka/backend/internal/domain"
 	"github.com/robozmey/podzemka/backend/internal/repository"
 )
@@ -23,6 +25,10 @@ type application struct {
 }
 
 func main() {
+	if err := godotenv.Load(); err != nil && !os.IsNotExist(err) {
+		log.Fatal("Ошибка загрузки .env: ", err)
+	}
+
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	db, err := repository.OpenPostgres(ctx)
 	cancel()

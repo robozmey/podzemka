@@ -1,10 +1,8 @@
 
 import "./YearTimeline.css";
+import type { MetroSchema } from "../types/metro";
 
-export type MetroCitySlug =
-  | "moscow"
-  | "saint-petersburg"
-  | "krasnoyarsk";
+export type MetroCitySlug = string;
 
 export type TimelineMark = {
   year: number;
@@ -12,7 +10,7 @@ export type TimelineMark = {
 };
 
 export const CITY_YEAR_RANGES: Record<
-  MetroCitySlug,
+  string,
   { label: string; start: number; end: number }
 > = {
   "moscow": {
@@ -33,7 +31,7 @@ export const CITY_YEAR_RANGES: Record<
 };
 
 export const CITY_YEAR_MARKS: Record<
-  MetroCitySlug,
+  string,
   TimelineMark[]
 > = {
   "moscow": [
@@ -54,24 +52,47 @@ export const CITY_YEAR_MARKS: Record<
   ],
 };
 
+export function getCityTimeline(schema: MetroSchema) {
+  const city = schema.city.slug;
+  const knownRange = Object.prototype.hasOwnProperty.call(CITY_YEAR_RANGES, city)
+    ? CITY_YEAR_RANGES[city as MetroCitySlug]
+    : undefined;
+  const years = schema.stations.flatMap((station) =>
+    typeof station.year === "number" && Number.isFinite(station.year) && station.year > 0
+      ? [station.year]
+      : [],
+  );
+  const currentYear = new Date().getFullYear();
+  const start = years.length > 0 ? Math.min(...years) : currentYear;
+  const end = years.length > 0
+    ? Math.max(currentYear, ...years)
+    : currentYear;
+
+  return {
+    range: knownRange ?? { label: schema.city.name, start, end },
+    marks: knownRange ? CITY_YEAR_MARKS[city as MetroCitySlug] : [],
+    hasYears: knownRange !== undefined || years.length > 0,
+  };
+}
+
 type Props = {
-  city: MetroCitySlug;
+  timeline: ReturnType<typeof getCityTimeline>;
   year: number;
   onYearChange: (year: number) => void;
 };
 
 export default function YearTimeline({
-  city,
+  timeline,
   year,
   onYearChange,
 }: Props) {
-  const range = CITY_YEAR_RANGES[city];
+  const { range } = timeline;
   const selectedYear = Math.max(
     range.start,
     Math.min(range.end, year)
   );
 
-  const marks = CITY_YEAR_MARKS[city].filter(
+  const marks = timeline.marks.filter(
     (mark) =>
       mark.year >= range.start && mark.year <= range.end
   );
@@ -104,7 +125,7 @@ export default function YearTimeline({
         {marks.map((mark) => {
           const position =
             ((mark.year - range.start) /
-              (range.end - range.start)) *
+              (range.end - range.start || 1)) *
             100;
 
           return (
