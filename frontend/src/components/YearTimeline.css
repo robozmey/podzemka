@@ -73,7 +73,7 @@
 }
 
 .year-timeline__mark--start {
-    transform: translateY(-30%);
+    transform: translateY(-40%);
 }
 
 .year-timeline__mark:hover,
@@ -84,7 +84,7 @@
 .year-timeline__dot {
     box-sizing: border-box;
     flex: 0 0 11px;
-    width: 11px;
+    width: 0px;
     height: 11px;
     border: 2px solid #ef4444;
     border-radius: 50%;
@@ -100,7 +100,7 @@
 .year-timeline__mark-text {
     display: flex;
     flex-direction: column;
-    gap: 3px;
+    gap: 0px;
     min-width: 0;
 }
 
