@@ -1,17 +1,17 @@
 services:
   db:
     image: postgres:16-alpine
-    container_name: podzemka-postgres
+    restart: unless-stopped
     environment:
-      POSTGRES_DB: podzemka
-      POSTGRES_USER: podzemka
-      POSTGRES_PASSWORD: podzemka
+      POSTGRES_DB: ${POSTGRES_DB:-podzemka}
+      POSTGRES_USER: ${POSTGRES_USER:-podzemka}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-podzemka}
     ports:
-      - "5433:5432"
+      - "127.0.0.1:${POSTGRES_PORT:-5433}:5432"
     volumes:
       - podzemka-postgres-data:/var/lib/postgresql/data
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U podzemka -d podzemka"]
+      test: ["CMD-SHELL", "pg_isready -U $$POSTGRES_USER -d $$POSTGRES_DB"]
       interval: 10s
       timeout: 5s
       retries: 5
@@ -25,7 +25,12 @@ services:
         condition: service_healthy
     volumes:
       - ./backend/migrations:/migrations:ro
-    entrypoint: ["migrate", "-path", "/migrations", "-database", "postgres://podzemka:podzemka@db:5432/podzemka?sslmode=disable"]
+    entrypoint:
+      - migrate
+      - -path
+      - /migrations
+      - -database
+      - postgres://${POSTGRES_USER:-podzemka}:${POSTGRES_PASSWORD:-podzemka}@db:5432/${POSTGRES_DB:-podzemka}?sslmode=disable
     command: ["up"]
 
 volumes:
