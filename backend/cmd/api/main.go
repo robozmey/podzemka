@@ -7,6 +7,8 @@ import (
 	"os"
 	"time"
 
+	"github.com/joho/godotenv"
+
 	"github.com/robozmey/podzemka/backend/internal/domain"
 	"github.com/robozmey/podzemka/backend/internal/repository"
 )
@@ -14,6 +16,8 @@ import (
 type schemaRepository interface {
 	ListCities(context.Context) ([]domain.City, error)
 	GetSchemaBySlug(context.Context, string) (domain.MetroSchema, error)
+	SaveSchema(context.Context, domain.MetroSchema) error
+	CityExists(context.Context, string) (bool, error)
 }
 
 type application struct {
@@ -21,6 +25,10 @@ type application struct {
 }
 
 func main() {
+	if err := godotenv.Load(); err != nil && !os.IsNotExist(err) {
+		log.Fatal("Ошибка загрузки .env: ", err)
+	}
+
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	db, err := repository.OpenPostgres(ctx)
 	cancel()
@@ -35,6 +43,8 @@ func main() {
 	mux.HandleFunc("GET /", helloHandler)
 	mux.HandleFunc("GET /health", healthHandler)
 	mux.HandleFunc("GET /api/cities", app.citiesHandler)
+	mux.HandleFunc("POST /api/cities", app.createCityHandler)
+	mux.HandleFunc("POST /api/cities/preview-import", app.previewImportHandler)
 	mux.HandleFunc("GET /api/cities/{citySlug}/metro/schema", app.schemaHandler)
 
 	port := os.Getenv("PORT")
