@@ -20,6 +20,22 @@ func TestMetroContentValidate(t *testing.T) {
 		{"unknown year", func(s *MetroContent) { s.Stations[0].Year = 0 }, ""},
 		{"minimum year", func(s *MetroContent) { s.Stations[0].Year = 1863 }, ""},
 		{"maximum year", func(s *MetroContent) { s.Stations[0].Year = 2100 }, ""},
+		{"valid geographic coordinates", func(s *MetroContent) {
+			latitude, longitude := 55.75, 37.61
+			s.Stations[0].Latitude = &latitude
+			s.Stations[0].Longitude = &longitude
+		}, ""},
+		{"partial geographic coordinates", func(s *MetroContent) { latitude := 55.75; s.Stations[0].Latitude = &latitude }, "station 1 must provide both lat and lon"},
+		{"latitude out of range", func(s *MetroContent) {
+			latitude, longitude := 91.0, 37.61
+			s.Stations[0].Latitude = &latitude
+			s.Stations[0].Longitude = &longitude
+		}, "station 1 has invalid latitude: 91"},
+		{"longitude out of range", func(s *MetroContent) {
+			latitude, longitude := 55.75, 181.0
+			s.Stations[0].Latitude = &latitude
+			s.Stations[0].Longitude = &longitude
+		}, "station 1 has invalid longitude: 181"},
 		{"year too early", func(s *MetroContent) { s.Stations[0].Year = 1862 }, "station 1 has invalid year: 1862"},
 		{"year too late", func(s *MetroContent) { s.Stations[0].Year = 2101 }, "station 1 has invalid year: 2101"},
 		{"zero line id", func(s *MetroContent) { s.Lines[0].ID = 0 }, "invalid or duplicate line id: 0"},

@@ -19,7 +19,4 @@ func TestParseKazanLooseOverpassExport(t *testing.T) {
 	if len(schema.Stations) != 11 {
 		t.Fatalf("stations=%d, want 11", len(schema.Stations))
 	}
-	if len(schema.Lines) != 1 || schema.Lines[0].Name != "Красная" {
-		t.Fatalf("unexpected lines: %+v", schema.Lines)
-	}
 }

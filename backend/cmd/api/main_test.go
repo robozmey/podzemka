@@ -16,14 +16,15 @@ import (
 )
 
 type fakeRepository struct {
-	err       error
-	slug      string
-	cities    []domain.City
-	saved     []domain.MetroSchema
-	listErr   error
-	saveErr   error
-	exists    bool
-	existsErr error
+	err        error
+	slug       string
+	cities     []domain.City
+	saved      []domain.MetroSchema
+	listErr    error
+	saveErr    error
+	exists     bool
+	existsErr  error
+	nameExists bool
 }
 
 func (f *fakeRepository) ListCities(context.Context) ([]domain.City, error) {
@@ -39,6 +40,9 @@ func (f *fakeRepository) SaveSchema(_ context.Context, schema domain.MetroSchema
 }
 func (f *fakeRepository) CityExists(context.Context, string) (bool, error) {
 	return f.exists, f.existsErr
+}
+func (f *fakeRepository) CityExistsByName(context.Context, string) (bool, error) {
+	return f.nameExists, f.existsErr
 }
 func TestCreateCityHTTP(t *testing.T) {
 	validBody := `{"name":"Казань","slug":"kazan","stations":[{"id":1,"name":"Кремлёвская","x":20,"y":30}],"lines":[{"id":1,"name":"Центральная","color":"#123456","stations":[1]}]}`
@@ -89,6 +93,100 @@ func TestCreateCityHTTP(t *testing.T) {
 	}
 }
 
+func TestAdminOnlyRequiresConfiguredBearerToken(t *testing.T) {
+	tests := []struct {
+		name       string
+		token      string
+		authority  string
+		wantStatus int
+	}{
+		{name: "missing token", token: "secret", wantStatus: http.StatusUnauthorized},
+		{name: "invalid token", token: "secret", authority: "Bearer wrong", wantStatus: http.StatusUnauthorized},
+		{name: "valid token", token: "secret", authority: "Bearer secret", wantStatus: http.StatusNoContent},
+		{name: "admin disabled", wantStatus: http.StatusServiceUnavailable},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			handler := adminOnly(test.token, http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+				w.WriteHeader(http.StatusNoContent)
+			}))
+			request := httptest.NewRequest(http.MethodGet, "/api/admin/session", nil)
+			if test.authority != "" {
+				request.Header.Set("Authorization", test.authority)
+			}
+			response := httptest.NewRecorder()
+			handler.ServeHTTP(response, request)
+			if response.Code != test.wantStatus {
+				t.Fatalf("status=%d, want %d", response.Code, test.wantStatus)
+			}
+		})
+	}
+}
+
+func TestPreviewCityUsesRussianNameAndGeneratedSlug(t *testing.T) {
+	app := application{
+		repo: &fakeRepository{},
+		previewCity: func(_ context.Context, name string) (domain.MetroContent, error) {
+			if name != "Казань" {
+				t.Fatalf("preview city name=%q, want Казань", name)
+			}
+			return domain.MetroContent{
+				Stations: []domain.Station{{ID: 1, Name: "Кремлёвская", X: 10, Y: 20}},
+				Lines:    []domain.MetroLine{{ID: 1, Name: "Красная", Color: "#e53935", Stations: []int{1}}},
+			}, nil
+		},
+	}
+	mux := http.NewServeMux()
+	mux.Handle("POST /api/admin/cities/preview", adminOnly("secret", http.HandlerFunc(app.previewCityHandler)))
+	request := httptest.NewRequest(http.MethodPost, "/api/admin/cities/preview", strings.NewReader(`{"name":"Казань"}`))
+	request.Header.Set("Authorization", "Bearer secret")
+	response := httptest.NewRecorder()
+	mux.ServeHTTP(response, request)
+	if response.Code != http.StatusOK {
+		t.Fatalf("status=%d body=%s", response.Code, response.Body.String())
+	}
+	var result struct {
+		Slug          string `json:"slug"`
+		StationsCount int    `json:"stationsCount"`
+		LinesCount    int    `json:"linesCount"`
+	}
+	if err := json.Unmarshal(response.Body.Bytes(), &result); err != nil {
+		t.Fatal(err)
+	}
+	if result.Slug != "kazan" || result.StationsCount != 1 || result.LinesCount != 1 {
+		t.Fatalf("unexpected preview response: %+v", result)
+	}
+}
+
+func TestPreviewCityRejectsDuplicateBeforeCallingOSM(t *testing.T) {
+	called := false
+	app := application{
+		repo: &fakeRepository{nameExists: true},
+		previewCity: func(context.Context, string) (domain.MetroContent, error) {
+			called = true
+			return domain.MetroContent{}, nil
+		},
+	}
+	mux := http.NewServeMux()
+	mux.Handle("POST /api/admin/cities/preview", adminOnly("secret", http.HandlerFunc(app.previewCityHandler)))
+	request := httptest.NewRequest(http.MethodPost, "/api/admin/cities/preview", strings.NewReader(`{"name":"Казань"}`))
+	request.Header.Set("Authorization", "Bearer secret")
+	response := httptest.NewRecorder()
+	mux.ServeHTTP(response, request)
+	if response.Code != http.StatusConflict || called {
+		t.Fatalf("status=%d called OSM=%v; want conflict without OSM request", response.Code, called)
+	}
+	if !strings.Contains(response.Body.String(), "уже добавлен") {
+		t.Fatalf("duplicate response=%s", response.Body.String())
+	}
+}
+
+func TestCitySlugTransliteration(t *testing.T) {
+	if got := citySlug("Нижний Новгород"); got != "nizhniy-novgorod" {
+		t.Fatalf("citySlug=%q, want nizhniy-novgorod", got)
+	}
+}
+
 func TestPreviewImportHTTP(t *testing.T) {
 	mux := http.NewServeMux()
 	mux.HandleFunc("POST /api/cities/preview-import", (application{}).previewImportHandler)
@@ -100,7 +198,7 @@ func TestPreviewImportHTTP(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		_, _ = file.Write([]byte(`{"elements":[{"type":"node","id":1,"lat":59.9,"lon":30.3,"tags":{"station":"subway","name":"Station A","colour":"blue"}}]}`))
+		_, _ = file.Write([]byte(`{"elements":[{"type":"node","id":1,"lat":59.9,"lon":30.3,"tags":{"station":"subway","name":"Station A","colour":"blue"}},{"type":"node","id":2,"lat":59.91,"lon":30.31,"tags":{"station":"subway","name":"Station B","colour":"blue"}},{"type":"relation","id":10,"tags":{"type":"route","route":"subway","ref":"2","colour":"blue"},"members":[{"type":"node","ref":1,"role":"stop"},{"type":"node","ref":2,"role":"stop"}]}]}`))
 		_ = writer.Close()
 		request := httptest.NewRequest(http.MethodPost, "/api/cities/preview-import", &body)
 		request.Header.Set("Content-Type", writer.FormDataContentType())
@@ -116,7 +214,7 @@ func TestPreviewImportHTTP(t *testing.T) {
 		if err := json.Unmarshal(response.Body.Bytes(), &result); err != nil {
 			t.Fatal(err)
 		}
-		if result.StationsCount != 1 || result.LinesCount != 1 {
+		if result.StationsCount != 2 || result.LinesCount != 1 {
 			t.Fatalf("preview counts=%d stations, %d lines", result.StationsCount, result.LinesCount)
 		}
 	})
