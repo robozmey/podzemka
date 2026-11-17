@@ -21,6 +21,8 @@ const (
 	mapMargin = 30.0
 )
 
+var ErrNoStations = errors.New("в выгрузке не найдены узлы станций метро с названием")
+
 type response struct {
 	Elements []element `json:"elements"`
 }
@@ -61,17 +63,21 @@ func Parse(input io.Reader, width, height float64) (domain.MetroContent, error) 
 	if width <= 2*mapMargin || height <= 2*mapMargin {
 		return domain.MetroContent{}, errors.New("ширина и высота должны быть больше двойного отступа")
 	}
-	stations, err := parseStations(input)
+	data, err := parseElements(input)
 	if err != nil {
 		return domain.MetroContent{}, err
+	}
+	stations := parseStations(data.Elements)
+	if len(stations) == 0 {
+		return domain.MetroContent{}, ErrNoStations
 	}
 	return buildSchema(stations, width, height), nil
 }
 
-func parseStations(input io.Reader) ([]importedStation, error) {
+func parseElements(input io.Reader) (response, error) {
 	payload, err := io.ReadAll(input)
 	if err != nil {
-		return nil, fmt.Errorf("прочитать Overpass JSON: %w", err)
+		return response{}, fmt.Errorf("прочитать Overpass JSON: %w", err)
 	}
 
 	var data response
@@ -82,14 +88,17 @@ func parseStations(input io.Reader) ([]importedStation, error) {
 		var rawElements []rawElement
 		wrapped := append(append([]byte{'['}, cleanPayload...), ']')
 		if arrayErr := json.Unmarshal(wrapped, &rawElements); arrayErr != nil {
-			return nil, fmt.Errorf("разобрать Overpass JSON: %w", err)
+			return response{}, fmt.Errorf("разобрать Overpass JSON: %w", err)
 		}
 		data.Elements = rawElements
 	}
+	return data, nil
+}
 
+func parseStations(elements []element) []importedStation {
 	unique := make(map[int64]importedStation)
-	for _, item := range data.Elements {
-		if item.Type != "node" || item.ID == 0 || item.Lat == 0 || item.Lon == 0 {
+	for _, item := range elements {
+		if item.Type != "node" || item.ID == 0 || item.Lat < -90 || item.Lat > 90 || item.Lon < -180 || item.Lon > 180 {
 			continue
 		}
 		if item.Tags["station"] != "subway" && item.Tags["subway"] != "yes" {
@@ -122,10 +131,7 @@ func parseStations(input io.Reader) ([]importedStation, error) {
 		}
 		return stations[i].osmID < stations[j].osmID
 	})
-	if len(stations) == 0 {
-		return nil, errors.New("в выгрузке не найдены узлы станций метро с названием")
-	}
-	return stations, nil
+	return stations
 }
 
 func removeTrailingCommas(payload []byte) []byte {
@@ -195,9 +201,11 @@ func buildSchema(stations []importedStation, width, height float64) domain.Metro
 		x := mapMargin + (station.lon-minLon)/lonRange*(width-2*mapMargin)
 		y := mapMargin + (maxLat-station.lat)/latRange*(height-2*mapMargin)
 		stationID := index + 1
+		latitude, longitude := station.lat, station.lon
 		out.Stations = append(out.Stations, domain.Station{
 			ID: stationID, Name: station.name,
 			X: int(x + 0.5), Y: int(y + 0.5), Year: station.year,
+			Latitude: &latitude, Longitude: &longitude,
 		})
 		stationIDsByOSMID[station.osmID] = stationID
 		if line, ok := lineIndex[station.color]; ok {
