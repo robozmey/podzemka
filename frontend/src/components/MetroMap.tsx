@@ -6,6 +6,7 @@ import YearTimeline, {
 import type { MetroSchema, Station } from '../types/metro'
 import './MetroMap.css'
 import { arrangeLabels, type LabelPlacement } from './labelLayout'
+import { GeographicMetroMap } from './GeographicMetroMap'
 
 type MetroMapProps = {
   schema: MetroSchema
@@ -35,10 +36,19 @@ export function MetroMap({ schema }: MetroMapProps) {
   const visibleStations = schema.stations.filter(
     (station) => station.year == null || station.year <= year,
   )
+  const hasGeographicCoordinates = schema.stations.length > 0
+    && schema.stations.every((station) => (
+      Number.isFinite(station.lat)
+      && Number.isFinite(station.lon)
+      && station.lat! >= -90
+      && station.lat! <= 90
+      && station.lon! >= -180
+      && station.lon! <= 180
+    ))
   const stationById = new Map(visibleStations.map((station) => [station.id, station]),)
   useLayoutEffect(() => {
     const svg = svgRef.current
-    if (!svg) return
+    if (!svg || hasGeographicCoordinates) return
 
     const textElements = svg.querySelectorAll<SVGTextElement>(
       '.station__label',
@@ -106,7 +116,7 @@ export function MetroMap({ schema }: MetroMapProps) {
     )
 
     setLabelPlacements(result.placements)
-  }, [schema, year])
+  }, [schema, year, hasGeographicCoordinates])
 
   const placementById = new Map(
     labelPlacements.map((placement) => [
@@ -127,12 +137,20 @@ export function MetroMap({ schema }: MetroMapProps) {
         />
       )}
 
+      {hasGeographicCoordinates && (
+        <GeographicMetroMap
+          schema={schema}
+          visibleStations={visibleStations}
+        />
+      )}
+
       <svg
         ref={svgRef}
+        style={{ display: hasGeographicCoordinates ? 'none' : undefined }}
         className="metro-map"
         viewBox="0 0 700 420"
         role="img"
-        aria-label="Схема Санкт-Петербургского метро"
+        aria-label={`Схема метро: ${schema.city.name}`}
         onPointerOver={(event) => {
           if (!(event.target instanceof Element)) return
 
