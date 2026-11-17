@@ -3,6 +3,7 @@ import { createCity, getCities, getMetroSchema, previewOverpassImport, type Impo
 import { MetroMap } from './components/MetroMap'
 import type { City, MetroSchema } from './types/metro'
 import './styles/App.css'
+import { CitySelector } from './components/CitySelector'
 
 function App() {
   const [cities, setCities] = useState<City[]>([])
@@ -135,14 +136,11 @@ function App() {
 
           </button>
           <h1>Схема метро</h1>
-          <div className="city-picker">
-            <label htmlFor="city-select">Город</label>
-            <div className="city-picker__control">
-              <select id="city-select" value={citySlug} onChange={(event) => setCitySlug(event.target.value)} disabled={cities.length === 0}>
-                {cities.map((city) => <option key={city.id} value={city.slug}>{city.name}</option>)}
-              </select>
-            </div>
-          </div>
+          <CitySelector
+            cities={cities}
+            value={citySlug}
+            onChange={setCitySlug}
+          />
         </header>
 
         <details className="city-import">

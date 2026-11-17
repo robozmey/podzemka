@@ -227,3 +227,22 @@ h1 {
 :root[data-theme='dark'] .city-import button {
   color: #141821;
 }
+
+.city-info {
+  margin-bottom: 1rem;
+  padding: 1.25rem 1.5rem;
+  background: var(--surface-bg);
+  color: var(--text-color);
+  border: 1px solid var(--border-color);
+  border-radius: 12px;
+}
+
+.city-info h2 {
+  margin: 0 0 0.75rem;
+  font-size: 1.25rem;
+}
+
+.city-info p {
+  margin: 0.3rem 0;
+  color: var(--text-secondary);
+}

@@ -6,6 +6,7 @@ import YearTimeline, {
 import type { MetroSchema, Station } from '../types/metro'
 import './MetroMap.css'
 import { arrangeLabels, type LabelPlacement } from './labelLayout'
+import { MetroInfoPanel } from './MetroInfoPanel'
 
 type MetroMapProps = {
   schema: MetroSchema
@@ -21,9 +22,34 @@ export function MetroMap({ schema }: MetroMapProps) {
   const svgRef = useRef<SVGSVGElement>(null)
   const [labelPlacements, setLabelPlacements] = useState<LabelPlacement[]>([])
 
+  const [selectedLineId, setSelectedLineId] = useState<number | null>(null)
+  const [selectedStationId, setSelectedStationId] = useState<number | null>(null)
+
+  const selectedLine = schema.lines.find(
+    (line) => line.id === selectedLineId
+  )
+
+  const selectedStation = schema.stations.find(
+  (station) => station.id === selectedStationId
+) ?? null
+
+  const selectedLines = selectedStation
+    ? schema.lines.filter((line) =>
+        line.stations.includes(selectedStation.id)
+      )
+    : selectedLine
+      ? [selectedLine]
+      : []
+
+  const highlightedLineIds = new Set(
+    selectedLines.map((line) => line.id)
+  )
+
   useEffect(() => {
     setSelectedYear(range.end)
     setHoveredStation(null)
+    setSelectedLineId(null)
+    setSelectedStationId(null)
   }, [schema])
 
 
@@ -115,112 +141,185 @@ export function MetroMap({ schema }: MetroMapProps) {
     ]),
   )
   return (
-    <div className="metro-map-layout">
-      {timeline.hasYears && (
-        <YearTimeline
-          timeline={timeline}
-          year={year}
-          onYearChange={(nextYear: number) => {
-            setSelectedYear(nextYear)
-            setHoveredStation(null)
-          }}
-        />
-      )}
-
-      <svg
-        ref={svgRef}
-        className="metro-map"
-        viewBox="0 0 700 420"
-        role="img"
-        aria-label="Схема Санкт-Петербургского метро"
-        onPointerOver={(event) => {
-          if (!(event.target instanceof Element)) return
-
-          const group = event.target.closest<SVGGElement>('[data-station-id]')
-          if (!group) return
-
-          const stationId = Number(group.dataset.stationId)
-          const station = visibleStations.find((item) => item.id === stationId,)
-          if (station) setHoveredStation(station)
+    <div className="metro-view">
+      <MetroInfoPanel
+        schema={schema}
+        selectedLines={selectedLines}
+        selectedStation={selectedStation}
+        onClearSelection={() => {
+          setSelectedLineId(null)
+          setSelectedStationId(null)
         }}
-        onPointerLeave={() => setHoveredStation(null)}
-      >
-        {schema.city.slug === 'saint-petersburg' && (
-          <image
-            className="metro-map__background"
-            href="/maps/saint-petersburg-rivers.png"
-            x="0"
-            y="0"
-            width="700"
-            height="420"
-            preserveAspectRatio="xMidYMid slice"
+      />
+      <div className="metro-map-layout">
+        {timeline.hasYears && (
+          <YearTimeline
+            timeline={timeline}
+            year={year}
+            onYearChange={(nextYear: number) => {
+              setSelectedYear(nextYear)
+              setSelectedStationId((current) => {
+                const station = schema.stations.find((item) => item.id === current)
+                return station?.year != null && station.year > nextYear ? null : current
+              })
+              setHoveredStation(null)
+            }}
           />
         )}
-        {schema.lines.map((line) => {
-          const stations = line.stations
-            .map((stationId) => stationById.get(stationId))
-            .filter((station): station is Station => station !== undefined)
+      <div className="metro-map-content">
+        <svg
+          ref={svgRef}
+          className="metro-map"
+          viewBox="0 0 700 420"
+          role="img"
+          aria-label="Схема Санкт-Петербургского метро"
+          onPointerOver={(event) => {
+            if (!(event.target instanceof Element)) return
 
-          return (
-            <polyline
-              key={line.id}
-              points={stations.map(({ x, y }) => `${x},${y}`).join(' ')}
-              fill="none"
-              stroke={line.color}
-              strokeLinecap="round"
-              strokeLinejoin="round"
-              strokeWidth="2.4"
+            const group = event.target.closest<SVGGElement>('[data-station-id]')
+            if (!group) return
+
+            const stationId = Number(group.dataset.stationId)
+            const station = visibleStations.find((item) => item.id === stationId,)
+            if (station) setHoveredStation(station)
+          }}
+          onPointerLeave={() => setHoveredStation(null)}
+        >
+          {schema.city.slug === 'saint-petersburg' && (
+            <image
+              className="metro-map__background"
+              href="/maps/saint-petersburg-rivers.png"
+              x="0"
+              y="0"
+              width="700"
+              height="420"
+              preserveAspectRatio="xMidYMid slice"
             />
-          )
-        })}
+          )}
+          {schema.lines.map((line) => {
+            const stations = line.stations
+              .map((stationId) => stationById.get(stationId))
+              .filter((station): station is Station => station !== undefined)
 
-        {visibleStations.map((station) => {
-          const placement = placementById.get(station.id)
+            return (
+              <g key={line.id}>
+                <polyline
+                  points={stations.map(({ x, y }) => `${x},${y}`).join(' ')}
+                  fill="none"
+                  stroke={line.color}
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  strokeWidth={highlightedLineIds.has(line.id) ? 4 : 2.4}
+                  opacity={
+                    highlightedLineIds.size > 0 && !highlightedLineIds.has(line.id)
+                      ? 0.4
+                      : 1
+                  }
+                  pointerEvents="none"
+                />
 
-          return (
-            <g
-              key={station.id}
-              className="station"
-              data-station-id={station.id}
-            >
-              <circle cx={station.x} cy={station.y} r="2" />
+                <polyline
+                  points={stations.map(({ x, y }) => `${x},${y}`).join(' ')}
+                  fill="none"
+                  stroke="transparent"
+                  strokeWidth="12"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  pointerEvents="stroke"
+                  className="metro-line-hitbox"
+                  role="button"
+                  tabIndex={0}
+                  aria-label={`Информация о линии ${line.name}`}
+                  onClick={() => {
+                    setSelectedStationId(null)
+                    setSelectedLineId((current) =>
+                      current === line.id ? null : line.id
+                    )
+                  }}
+                  onKeyDown={(event) => {
+                    if (event.key === 'Enter' || event.key === ' ') {
+                      event.preventDefault()
+                      setSelectedStationId(null)
+                      setSelectedLineId((current) =>
+                        current === line.id ? null : line.id
+                      )
+                    }
+                  }}
+                />
+              </g>
+            )
+          })}
 
-              <text
-                className="station__label"
+          {visibleStations.map((station) => {
+            const placement = placementById.get(station.id)
+
+            return (
+              <g
+                key={station.id}
+                className={`station ${selectedStationId === station.id ? 'station--selected' : ''}`}
                 data-station-id={station.id}
-                x={placement?.x ?? station.x}
-                y={placement?.y ?? station.y + 5.6}
-                textAnchor={placement?.anchor ?? 'middle'}
+                role="button"
+                tabIndex={0}
+                aria-label={`Выбрать станцию ${station.name}`}
+                onClick={() => {
+                  setSelectedLineId(null)
+                  setSelectedStationId((current) =>
+                    current === station.id ? null : station.id
+                  )
+                }}
+                onKeyDown={(event) => {
+                  if (event.key === 'Enter' || event.key === ' ') {
+                    event.preventDefault()
+                    setSelectedLineId(null)
+                    setSelectedStationId((current) =>
+                      current === station.id ? null : station.id
+                    )
+                  }
+                }}
               >
-                {station.name}
-              </text>
-            </g>
-          )
-        })}
+                <circle cx={station.x} cy={station.y} r="2" />
 
-        {hoveredStation && (
-          <foreignObject
-            className="station__tooltip"
-            x={hoveredStation.x > 460 ? hoveredStation.x - 238 : hoveredStation.x + 18}
-            y={Math.max(10, Math.min(hoveredStation.y - 45, 280))}
-            width="220"
-            height="130"
-            onPointerLeave={() => setHoveredStation(null)}
-          >
-            <div className="station__tooltip-content">
-              <strong>{hoveredStation.name}</strong>
-              <p>
-                Линии: {schema.lines
-                  .filter((line) => line.stations.includes(hoveredStation.id))
-                  .map((line) => line.name)
-                  .join(', ') || 'не указаны'}
-              </p>
-              <p>Год открытия: {hoveredStation.year || "не указан"}.</p>
-              <p>Здесь можно разместить описание станции.</p>
-            </div>
-          </foreignObject>
-        )}
-      </svg>
+                <text
+                  className="station__label"
+                  data-station-id={station.id}
+                  x={placement?.x ?? station.x}
+                  y={placement?.y ?? station.y + 5.6}
+                  textAnchor={placement?.anchor ?? 'middle'}
+                >
+                  {station.name}
+                </text>
+              </g>
+            )
+          })}
+
+          {hoveredStation && hoveredStation.id !== selectedStationId && (
+            <foreignObject
+              className="station__tooltip"
+              x={hoveredStation.x > 460 ? hoveredStation.x - 198 : hoveredStation.x + 18}
+              y={Math.max(10, Math.min(hoveredStation.y - 45, 280))}
+              width="180"
+              height="85"
+              onPointerLeave={() => setHoveredStation(null)}
+            >
+              <div className="station__tooltip-content">
+                <strong>{hoveredStation.name}</strong>
+
+                <p>
+                  {schema.lines
+                    .filter((line) => line.stations.includes(hoveredStation.id))
+                    .map((line) => line.name)
+                    .join(', ') || 'Линия не указана'}
+                </p>
+
+                {hoveredStation.year != null && hoveredStation.year > 0 && (
+                  <p>Открыта в {hoveredStation.year} году</p>
+                )}
+              </div>
+            </foreignObject>
+          )}
+        </svg>
+        </div>
+      </div>
     </div>
   )
 }
