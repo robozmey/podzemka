@@ -10,7 +10,7 @@
 
 .eyebrow {
   margin: 0;
-  color: #64748b;
+  color: var(--text-secondary);
   font-size: 0.9rem;
   font-weight: 700;
   letter-spacing: 0.08em;
@@ -24,7 +24,8 @@ h1 {
 
 .message {
   padding: 1rem;
-  background: #ffffff;
+  background: var(--surface-bg);
+  color: var(--text-color);
   border-radius: 0.75rem;
   font-weight: 600;
 }
@@ -52,7 +53,7 @@ h1 {
 .city-picker label {
   display: block;
   margin-bottom: 0.45rem;
-  color: #52616b;
+  color: var(--text-secondary);
   font-size: 0.8rem;
   font-weight: 700;
 }
@@ -67,8 +68,8 @@ h1 {
   right: 1rem;
   width: 0.5rem;
   height: 0.5rem;
-  border-right: 2px solid #52616b;
-  border-bottom: 2px solid #52616b;
+  border-right: 2px solid var(--text-secondary);
+  border-bottom: 2px solid var(--text-secondary);
   content: "";
   pointer-events: none;
   transform: translateY(-70%) rotate(45deg);
@@ -79,27 +80,27 @@ h1 {
   min-height: 48px;
   padding: 0 2.75rem 0 1rem;
   appearance: none;
-  border: 1px solid #cbd5d1;
+  border: 1px solid var(--border-color);
   border-radius: 6px;
-  background: #fff;
-  color: #172033;
+  background: var(--surface-bg);
+  color: var(--text-color);
   font: inherit;
   font-weight: 600;
   cursor: pointer;
 }
 
 .city-picker select:hover {
-  border-color: #16836f;
+  border-color: var(--accent-color);
 }
 
 .city-picker select:focus-visible {
   outline: 3px solid rgb(22 131 111 / 25%);
   outline-offset: 2px;
-  border-color: #16836f;
+  border-color: var(--accent-color);
 }
 
 .city-picker select:disabled {
-  color: #7b858a;
+  color: var(--text-secondary);
   cursor: wait;
 }
 
@@ -108,11 +109,12 @@ h1 {
   padding: 1rem 1.25rem;
   border: 1px solid #cbd5d1;
   border-radius: 8px;
-  background: #fff;
+  background: var(--surface-bg);
+  border-color: var(--border-color);
 }
 
 .city-import summary {
-  color: #172033;
+  color: var(--text-color);
   font-weight: 700;
   cursor: pointer;
 }
@@ -128,7 +130,7 @@ h1 {
 .city-import__form label {
   display: grid;
   gap: 0.4rem;
-  color: #52616b;
+  color: var(--text-secondary);
   font-size: 0.85rem;
   font-weight: 700;
 }
@@ -147,7 +149,7 @@ h1 {
   padding: 0.6rem 1rem;
   border: 0;
   border-radius: 5px;
-  background: #16836f;
+  background: var(--accent-color);
   color: #fff;
   font: inherit;
   font-weight: 700;
@@ -173,4 +175,55 @@ h1 {
   .city-picker {
     width: 100%;
   }
+}
+
+.theme-toggle {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.55rem;
+  padding: 0;
+  border: 1px solid var(--border-color);
+  border-radius: 8px;
+  background: var(--surface-bg);
+  color: var(--text-color);
+  font: inherit;
+  cursor: pointer;
+  transition: background 0.2s, border-color 0.2s;
+  width: 42px;
+  height: 42px;
+}
+
+.theme-toggle svg {
+  flex-shrink: 0;
+}
+
+.theme-toggle:hover {
+  opacity: 0.8;
+}
+
+.city-import {
+  color: var(--text-color);
+}
+
+.city-import input,
+.city-import select,
+.city-import textarea {
+  background: var(--surface-bg);
+  color: var(--text-color);
+  border-color: var(--border-color);
+}
+
+.city-import input:focus-visible,
+.city-import select:focus-visible {
+  outline-color: var(--accent-color);
+}
+
+.city-import button {
+  background: var(--accent-color);
+  color: #fff;
+}
+
+:root[data-theme='dark'] .city-import button {
+  color: #141821;
 }

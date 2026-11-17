@@ -2,11 +2,35 @@
   box-sizing: border-box;
 }
 
+:root {
+  color-scheme: light;
+
+  --page-bg: #eef2f7;
+  --surface-bg: #ffffff;
+  --text-color: #172033;
+  --border-color: #d1d5db;
+
+  --text-secondary: #52616b;
+  --accent-color: #16836f;
+}
+
+:root[data-theme='dark'] {
+  color-scheme: dark;
+
+  --page-bg: #141821;
+  --surface-bg: #222937;
+  --text-color: #eef2f7;
+  --border-color: #465064;
+
+  --text-secondary: #a3b2c5;
+  --accent-color: #50c9ad;
+}
+
 body {
   margin: 0;
   min-width: 320px;
-  background: #eef2f7;
-  color: #172033;
+  background: var(--page-bg);
+  color: var(--text-color);
   font-family: Inter, Arial, sans-serif;
 }
 

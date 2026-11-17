@@ -15,11 +15,19 @@ function App() {
   const [preview, setPreview] = useState<ImportPreview | null>(null)
   const [importError, setImportError] = useState<string | null>(null)
   const [busy, setBusy] = useState(false)
+  const [theme, setTheme] = useState<'light' | 'dark'>(() => {
+    return localStorage.getItem('theme') === 'dark' ? 'dark' : 'light'
+  })
 
   const loadCities = (signal?: AbortSignal) => getCities(signal).then((loaded) => {
     setCities(loaded)
     return loaded
   })
+
+  useEffect(() => {
+    document.documentElement.dataset.theme = theme
+    localStorage.setItem('theme', theme)
+  }, [theme])
 
   useEffect(() => {
     const controller = new AbortController()
@@ -90,6 +98,42 @@ function App() {
     <main className="app">
       <section>
         <header className="map-header">
+          <button
+            type="button"
+            className="theme-toggle"
+            onClick={() => setTheme(theme === 'light' ? 'dark' : 'light')}
+            aria-label={theme === 'light' ? 'Включить тёмную тему' : 'Включить светлую тему'}
+            title={theme === 'light' ? 'Включить тёмную тему' : 'Включить светлую тему'}
+          >
+            {theme === 'light' ? (
+              <svg
+                width="18"
+                height="18"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="1.7"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+              >
+                <path d="M20.985 12.486A9 9 0 0 1 11.514 3.015 9 9 0 1 0 20.985 12.486Z" />
+              </svg>
+            ) : (
+              <svg
+                width="18"
+                height="18"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="1.7"
+                strokeLinecap="round"
+              >
+                <circle cx="12" cy="12" r="4" />
+                <path d="M12 2v2m0 16v2M4.93 4.93l1.42 1.42m11.3 11.3 1.42 1.42M2 12h2m16 0h2M4.93 19.07l1.42-1.42m11.3-11.3 1.42-1.42" />
+              </svg>
+            )}
+
+          </button>
           <h1>Схема метро</h1>
           <div className="city-picker">
             <label htmlFor="city-select">Город</label>

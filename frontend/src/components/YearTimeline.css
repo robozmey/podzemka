@@ -4,8 +4,8 @@
     width: 220px;
     min-width: 0;
     padding: 24px 18px;
-    background: #ffffff;
-    color: #172033;
+    background: var(--surface-bg);
+    color: var(--text-color);
     border-right: none;
     border-radius: 1rem;
     box-shadow: 0 1rem 3rem rgb(15 23 42 / 12%);
@@ -14,13 +14,13 @@
 }
 
 .year-timeline__heading {
-    color: #172033;
+    color: var(--text-color);
     font-size: 21px;
     letter-spacing: 0.2em;
 }
 
 .year-timeline__city {
-    color: #172033;
+    color: var(--text-color);
     font-size: 17px;
 }
 
@@ -67,7 +67,7 @@
     padding: 5px 0;
     border: 0;
     background: transparent;
-    color: #172033;
+    color: var(--text-color);
     text-align: left;
     cursor: pointer;
 }
@@ -118,7 +118,7 @@
     position: absolute;
     bottom: 0;
     left: 28px;
-    color: #172033;
+    color: var(--text-color);
     font-size: 12px;
 }
 
@@ -127,7 +127,7 @@
         width: 100%;
         flex-basis: 100%;
         border-right: 0;
-        border-bottom: 1px solid #252d3b;
+        border-bottom: 1px solid var(--border-color);
     }
 
     .year-timeline__scale {
