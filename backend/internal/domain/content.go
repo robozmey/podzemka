@@ -2,6 +2,7 @@ package domain
 
 import (
 	"fmt"
+	"math"
 	"regexp"
 	"strings"
 )
@@ -27,6 +28,15 @@ func (s MetroContent) Validate() error {
 		}
 		if station.Year != 0 && (station.Year < 1863 || station.Year > 2100) {
 			return fmt.Errorf("station %d has invalid year: %d", station.ID, station.Year)
+		}
+		if (station.Latitude == nil) != (station.Longitude == nil) {
+			return fmt.Errorf("station %d must provide both lat and lon", station.ID)
+		}
+		if station.Latitude != nil && (math.IsNaN(*station.Latitude) || math.IsInf(*station.Latitude, 0) || *station.Latitude < -90 || *station.Latitude > 90) {
+			return fmt.Errorf("station %d has invalid latitude: %v", station.ID, *station.Latitude)
+		}
+		if station.Longitude != nil && (math.IsNaN(*station.Longitude) || math.IsInf(*station.Longitude, 0) || *station.Longitude < -180 || *station.Longitude > 180) {
+			return fmt.Errorf("station %d has invalid longitude: %v", station.ID, *station.Longitude)
 		}
 
 		stations[station.ID] = true

@@ -1,42 +1,68 @@
-import type { City, MetroSchema } from '../types/metro'
+import type { City, MetroSchema, Station, MetroLine } from '../types/metro'
 
-export type ImportPreview = {
+export type CityPreview = {
+  name: string
+  slug: string
   stationsCount: number
   linesCount: number
-  schema: Pick<MetroSchema, 'stations' | 'lines'>
+  schema: Pick<MetroSchema, 'stations' | 'lines'> & {
+    stations: Station[]
+    lines: MetroLine[]
+  }
 }
 
-export async function previewOverpassImport(file: File, signal?: AbortSignal): Promise<ImportPreview> {
-  const form = new FormData()
-  form.append('file', file)
-  const response = await fetch('/api/cities/preview-import', {
-    method: 'POST',
-    body: form,
+async function throwApiError(response: Response, fallback: string): Promise<never> {
+  const body = await response.json().catch(() => null) as { error?: string } | null
+  throw new Error(body?.error ?? fallback)
+}
+
+export async function verifyAdminToken(token: string, signal?: AbortSignal): Promise<void> {
+  const response = await fetch('/api/admin/session', {
+    headers: { Authorization: `Bearer ${token}` },
     signal,
   })
   if (!response.ok) {
-    const body = await response.json().catch(() => null) as { error?: string } | null
-    throw new Error(body?.error ?? 'Не удалось обработать файл Overpass')
+    await throwApiError(response, 'Нет доступа к администрированию')
   }
-  return response.json() as Promise<ImportPreview>
+}
+
+export async function previewCityByName(
+  name: string,
+  token: string,
+  signal?: AbortSignal,
+): Promise<CityPreview> {
+  const response = await fetch('/api/admin/cities/preview', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      Authorization: `Bearer ${token}`,
+    },
+    body: JSON.stringify({ name }),
+    signal,
+  })
+  if (!response.ok) {
+    await throwApiError(response, 'Не удалось найти станции города')
+  }
+  return response.json() as Promise<CityPreview>
 }
 
 export async function createCity(
   city: { name: string; slug: string },
-  schema: ImportPreview['schema'],
+  schema: CityPreview['schema'],
+  token: string,
   signal?: AbortSignal,
 ): Promise<void> {
   const response = await fetch('/api/cities', {
     method: 'POST',
     headers: {
-      'Content-Type': 'application/json'
+      'Content-Type': 'application/json',
+      Authorization: `Bearer ${token}`,
     },
     body: JSON.stringify({ ...city, ...schema }),
     signal,
   })
   if (!response.ok) {
-    const body = await response.json().catch(() => null) as { error?: string } | null
-    throw new Error(body?.error ?? 'Не удалось создать город')
+    await throwApiError(response, 'Не удалось создать город')
   }
 }
 

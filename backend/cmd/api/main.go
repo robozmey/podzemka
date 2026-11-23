@@ -10,6 +10,7 @@ import (
 	"github.com/joho/godotenv"
 
 	"github.com/robozmey/podzemka/backend/internal/domain"
+	"github.com/robozmey/podzemka/backend/internal/overpass"
 	"github.com/robozmey/podzemka/backend/internal/repository"
 )
 
@@ -18,10 +19,12 @@ type schemaRepository interface {
 	GetSchemaBySlug(context.Context, string) (domain.MetroSchema, error)
 	SaveSchema(context.Context, domain.MetroSchema) error
 	CityExists(context.Context, string) (bool, error)
+	CityExistsByName(context.Context, string) (bool, error)
 }
 
 type application struct {
-	repo schemaRepository
+	repo        schemaRepository
+	previewCity func(context.Context, string) (domain.MetroContent, error)
 }
 
 func main() {
@@ -37,14 +40,20 @@ func main() {
 	}
 	defer db.Close()
 
-	app := application{repo: repository.NewPostgresRepository(db)}
+	app := application{
+		repo:        repository.NewPostgresRepository(db),
+		previewCity: overpass.FetchCity,
+	}
 
 	mux := http.NewServeMux()
 	mux.HandleFunc("GET /", helloHandler)
 	mux.HandleFunc("GET /health", healthHandler)
 	mux.HandleFunc("GET /api/cities", app.citiesHandler)
-	mux.HandleFunc("POST /api/cities", app.createCityHandler)
-	mux.HandleFunc("POST /api/cities/preview-import", app.previewImportHandler)
+	adminToken := os.Getenv("ADMIN_TOKEN")
+	mux.Handle("GET /api/admin/session", adminOnly(adminToken, http.HandlerFunc(adminSessionHandler)))
+	mux.Handle("POST /api/admin/cities/preview", adminOnly(adminToken, http.HandlerFunc(app.previewCityHandler)))
+	mux.Handle("POST /api/cities", adminOnly(adminToken, http.HandlerFunc(app.createCityHandler)))
+	mux.Handle("POST /api/cities/preview-import", adminOnly(adminToken, http.HandlerFunc(app.previewImportHandler)))
 	mux.HandleFunc("GET /api/cities/{citySlug}/metro/schema", app.schemaHandler)
 
 	port := os.Getenv("PORT")

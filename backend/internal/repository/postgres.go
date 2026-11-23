@@ -77,6 +77,20 @@ func (r *PostgresRepository) CityExists(ctx context.Context, slug string) (bool,
 	return exists, nil
 }
 
+func (r *PostgresRepository) CityExistsByName(ctx context.Context, name string) (bool, error) {
+	var exists bool
+	err := r.db.QueryRowContext(ctx, `
+		SELECT EXISTS (
+			SELECT 1 FROM cities
+			WHERE lower(btrim(name)) = lower(btrim($1))
+		)
+	`, name).Scan(&exists)
+	if err != nil {
+		return false, wrapPostgresError("check city name exists", err)
+	}
+	return exists, nil
+}
+
 func (r *PostgresRepository) GetCityBySlug(ctx context.Context, slug string) (domain.City, error) {
 	var city domain.City
 	err := r.db.QueryRowContext(ctx, `
@@ -147,10 +161,10 @@ func (r *PostgresRepository) SaveSchema(ctx context.Context, schema domain.Metro
 
 	var cityID int
 	err = tx.QueryRowContext(ctx, `
-		INSERT INTO cities (name, slug) 
+		INSERT INTO cities (name, slug)
 		VALUES ($1, $2)
- 		ON CONFLICT (slug) 
-		DO UPDATE SET name = EXCLUDED.name 
+ 		ON CONFLICT (slug)
+		DO UPDATE SET name = EXCLUDED.name
 		RETURNING id
 		`, schema.City.Name, schema.City.Slug).Scan(&cityID)
 
@@ -159,10 +173,10 @@ func (r *PostgresRepository) SaveSchema(ctx context.Context, schema domain.Metro
 	}
 
 	_, err = tx.ExecContext(ctx, `
-		INSERT INTO metro_schemas (city_id, schema) 
+		INSERT INTO metro_schemas (city_id, schema)
 		VALUES ($1, $2::jsonb)
- 		ON CONFLICT (city_id) 
-		DO UPDATE SET schema = EXCLUDED.schema, 
+ 		ON CONFLICT (city_id)
+		DO UPDATE SET schema = EXCLUDED.schema,
 					  updated_at = now()
 		`, cityID, string(data))
 

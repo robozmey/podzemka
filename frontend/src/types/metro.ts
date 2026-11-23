@@ -10,6 +10,8 @@ export type Station = {
   year?: number
   x: number
   y: number
+  lat?: number
+  lon?: number
 }
 
 export type MetroLine = {
