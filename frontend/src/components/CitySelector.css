@@ -33,7 +33,7 @@
 }
 
 .city-selector__trigger:hover {
-  border-color: var(--text-secondary);
+  border-color: var(--accent-color);
 }
 
 .city-selector__trigger:focus-visible {
@@ -85,6 +85,8 @@
   font: inherit;
   text-align: left;
   cursor: pointer;
+
+  margin-bottom: 5px;
 }
 
 .city-selector__option:hover,
