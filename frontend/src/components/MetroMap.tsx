@@ -6,7 +6,7 @@ import YearTimeline, {
 import type { MetroSchema, Station } from '../types/metro'
 import './MetroMap.css'
 import { arrangeLabels, type LabelPlacement } from './labelLayout'
-import { GeographicMetroMap } from './GeographicMetroMap'
+// import { GeographicMetroMap } from './GeographicMetroMap'
 
 type MetroMapProps = {
   schema: MetroSchema
@@ -137,12 +137,12 @@ export function MetroMap({ schema }: MetroMapProps) {
         />
       )}
 
-      {hasGeographicCoordinates && (
+      {/* {hasGeographicCoordinates && (
         <GeographicMetroMap
           schema={schema}
           visibleStations={visibleStations}
         />
-      )}
+      )} */}
 
       <svg
         ref={svgRef}

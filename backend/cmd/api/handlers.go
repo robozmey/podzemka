@@ -137,20 +137,20 @@ func (app application) createCityHandler(w http.ResponseWriter, r *http.Request)
 	ctx, cancel := context.WithTimeout(r.Context(), 10*time.Second)
 	defer cancel()
 
-	nameExists, err := app.repo.CityExistsByName(ctx, request.Name)
-	if err != nil {
-		log.Printf("check city name before create: %v", err)
-		writeJSON(w, http.StatusInternalServerError, map[string]string{
-			"error": "Не удалось проверить город",
-		})
-		return
-	}
-	if nameExists {
-		writeJSON(w, http.StatusConflict, map[string]string{
-			"error": "Город с таким названием уже добавлен",
-		})
-		return
-	}
+	// nameExists, err := app.repo.CityExistsByName(ctx, request.Name)
+	// if err != nil {
+	// 	log.Printf("check city name before create: %v", err)
+	// 	writeJSON(w, http.StatusInternalServerError, map[string]string{
+	// 		"error": "Не удалось проверить город",
+	// 	})
+	// 	return
+	// }
+	// if nameExists {
+	// 	writeJSON(w, http.StatusConflict, map[string]string{
+	// 		"error": "Город с таким названием уже добавлен",
+	// 	})
+	// 	return
+	// }
 
 	exists, err := app.repo.CityExists(ctx, request.Slug)
 	if err != nil {
