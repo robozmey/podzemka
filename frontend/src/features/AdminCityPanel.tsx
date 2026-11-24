@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState, type FormEvent } from 'react'
 
-import { createCity, previewCityByName, verifyAdminToken, type CityPreview } from '../api/metro'
+import { createCity, getCatalogCities, previewCityByName, previewCityFile, verifyAdminToken, type CityPreview, type CatalogCity } from '../api/metro'
 
 type AdminCityPanelProps = {
   open: boolean
@@ -17,6 +17,17 @@ export function AdminCityPanel({ open, onClose, onCityCreated }: AdminCityPanelP
   const [preview, setPreview] = useState<CityPreview | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [busy, setBusy] = useState(false)
+  const [catalogCities, setCatalogCities] = useState<CatalogCity[]>([])
+  const [importFile, setImportFile] = useState<File | null>(null)
+
+  useEffect(() => {
+    if (!open) return
+    const controller = new AbortController()
+    getCatalogCities(controller.signal)
+      .then(setCatalogCities)
+      .catch(() => setCatalogCities([]))
+    return () => controller.abort()
+  }, [open])
 
   useEffect(() => {
     const dialog = dialogRef.current
@@ -56,6 +67,35 @@ export function AdminCityPanel({ open, onClose, onCityCreated }: AdminCityPanelP
     }
   }
 
+  const handleFilePreview = async (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault()
+    if (!importFile) return
+    setBusy(true)
+    setError(null)
+    setPreview(null)
+    try {
+      setPreview(await previewCityFile(cityName.trim(), importFile, token))
+    } catch (reason) {
+      setError(reason instanceof Error ? reason.message : 'Не удалось проверить JSON-файл')
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  const handleImportFileChange = async (file: File | null) => {
+    setImportFile(file)
+    setPreview(null)
+    setError(null)
+    if (!file || cityName.trim()) return
+    try {
+      const parsed = JSON.parse(await file.text()) as { city?: { name?: string } }
+      const fileCityName = parsed.city?.name?.trim()
+      if (fileCityName) setCityName(fileCityName)
+    } catch {
+      // The backend will show the detailed JSON parsing error after submit.
+    }
+  }
+
   const handleCreate = async () => {
     if (!preview) return
     setBusy(true)
@@ -82,6 +122,7 @@ export function AdminCityPanel({ open, onClose, onCityCreated }: AdminCityPanelP
     setToken('')
     setTokenInput('')
     setCityName('')
+    setImportFile(null)
     setPreview(null)
     setError(null)
   }
@@ -144,6 +185,7 @@ export function AdminCityPanel({ open, onClose, onCityCreated }: AdminCityPanelP
               <input
                 autoFocus
                 autoComplete="off"
+                list="recommended-cities"
                 required
                 maxLength={100}
                 value={cityName}
@@ -153,9 +195,31 @@ export function AdminCityPanel({ open, onClose, onCityCreated }: AdminCityPanelP
                 }}
                 placeholder="Казань"
               />
+              <datalist id="recommended-cities">
+                {catalogCities.map((city) => (
+                  <option key={`${city.country}-${city.name}`} value={city.name}>
+                    {city.country}
+                  </option>
+                ))}
+              </datalist>
             </label>
             <button type="submit" disabled={busy || !cityName.trim()}>
               {busy ? 'Поиск в OpenStreetMap… это может занять до 2,5 минут' : 'Найти станции'}
+            </button>
+          </form>
+          <form className="admin-form" onSubmit={handleFilePreview}>
+            <label>
+              Или импортировать JSON-файл
+              <input
+                type="file"
+                accept=".json,application/json"
+                onChange={(event) => {
+                  void handleImportFileChange(event.target.files?.[0] ?? null)
+                }}
+              />
+            </label>
+            <button type="submit" disabled={busy || !importFile}>
+              {busy ? 'Проверка файла…' : 'Проверить JSON-файл'}
             </button>
           </form>
           {preview && (

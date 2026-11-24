@@ -30,11 +30,18 @@ type response struct {
 type rawElement = element
 
 type element struct {
-	Type string            `json:"type"`
-	ID   int64             `json:"id"`
-	Lat  float64           `json:"lat"`
-	Lon  float64           `json:"lon"`
-	Tags map[string]string `json:"tags"`
+	Type    string            `json:"type"`
+	ID      int64             `json:"id"`
+	Lat     float64           `json:"lat"`
+	Lon     float64           `json:"lon"`
+	Tags    map[string]string `json:"tags"`
+	Members []member          `json:"members"`
+	Nodes   []int64           `json:"nodes"`
+}
+
+type member struct {
+	Type string `json:"type"`
+	Ref  int64  `json:"ref"`
 }
 
 type importedStation struct {
@@ -44,6 +51,13 @@ type importedStation struct {
 	lon   float64
 	year  int
 	color string
+}
+
+type importedLine struct {
+	key        string
+	name       string
+	color      string
+	stationIDs []int64
 }
 
 var lineColors = []struct {
@@ -67,11 +81,11 @@ func Parse(input io.Reader, width, height float64) (domain.MetroContent, error) 
 	if err != nil {
 		return domain.MetroContent{}, err
 	}
-	stations := parseStations(data.Elements)
+	stations, lines := parseStationsAndLines(data.Elements)
 	if len(stations) == 0 {
 		return domain.MetroContent{}, ErrNoStations
 	}
-	return buildSchema(stations, width, height), nil
+	return buildSchema(stations, lines, width, height), nil
 }
 
 func parseElements(input io.Reader) (response, error) {
@@ -96,7 +110,76 @@ func parseElements(input io.Reader) (response, error) {
 }
 
 func parseStations(elements []element) []importedStation {
+	stations, _ := parseStationsAndLines(elements)
+	return stations
+}
+
+func parseStationsAndLines(elements []element) ([]importedStation, []importedLine) {
 	unique := make(map[int64]importedStation)
+	lines := make([]importedLine, 0)
+	lineIndexes := make(map[string]int)
+	for _, item := range elements {
+		if item.Type != "relation" || (item.Tags["route"] != "subway" && item.Tags["route"] != "light_rail") {
+			continue
+		}
+		color := normalizeColor(firstStationName(item.Tags, "colour", "color"))
+		key := strings.TrimSpace(item.Tags["ref"])
+		if key == "" {
+			key = strings.TrimSpace(item.Tags["name"])
+		}
+		if key == "" {
+			key = fmt.Sprintf("relation-%d", item.ID)
+		}
+		if _, ok := lineIndexes[key]; !ok {
+			lineIndexes[key] = len(lines)
+			name := firstStationName(item.Tags, "name:ru", "name:en", "alt_name:en", "official_name:en", "int_name", "name:zh-Latn", "name:zh_pinyin", "name", "ref")
+			if name == "" {
+				name = fmt.Sprintf("Линия %d", len(lines)+1)
+			}
+			if color == "#808080" {
+				color = lineColors[len(lines)%len(lineColors)].color
+			}
+			lines = append(lines, importedLine{key: key, name: name, color: color})
+		}
+		lineIndex := lineIndexes[key]
+		for _, relationMember := range item.Members {
+			if relationMember.Type != "node" || relationMember.Ref == 0 {
+				continue
+			}
+			lines[lineIndex].stationIDs = append(lines[lineIndex].stationIDs, relationMember.Ref)
+		}
+	}
+	ways := make(map[int64][]int64)
+	for _, item := range elements {
+		if item.Type != "way" {
+			continue
+		}
+		ways[item.ID] = append(ways[item.ID], item.Nodes...)
+	}
+	for _, item := range elements {
+		if item.Type != "relation" || (item.Tags["route"] != "subway" && item.Tags["route"] != "light_rail") {
+			continue
+		}
+		key := strings.TrimSpace(item.Tags["ref"])
+		if key == "" {
+			key = strings.TrimSpace(item.Tags["name"])
+		}
+		if key == "" {
+			key = fmt.Sprintf("relation-%d", item.ID)
+		}
+		lineIndex, ok := lineIndexes[key]
+		if !ok {
+			continue
+		}
+		for _, relationMember := range item.Members {
+			switch relationMember.Type {
+			case "node":
+				lines[lineIndex].stationIDs = append(lines[lineIndex].stationIDs, relationMember.Ref)
+			case "way":
+				lines[lineIndex].stationIDs = append(lines[lineIndex].stationIDs, ways[relationMember.Ref]...)
+			}
+		}
+	}
 	for _, item := range elements {
 		if item.Type != "node" || item.ID == 0 || item.Lat < -90 || item.Lat > 90 || item.Lon < -180 || item.Lon > 180 {
 			continue
@@ -104,10 +187,16 @@ func parseStations(elements []element) []importedStation {
 		if item.Tags["station"] != "subway" && item.Tags["subway"] != "yes" {
 			continue
 		}
-		name := strings.TrimSpace(item.Tags["name:ru"])
-		if name == "" {
-			name = strings.TrimSpace(item.Tags["name"])
-		}
+		name := firstStationName(item.Tags,
+			"name:ru",
+			"name:en",
+			"alt_name:en",
+			"official_name:en",
+			"int_name",
+			"name:zh-Latn",
+			"name:zh_pinyin",
+			"name",
+		)
 		if name == "" {
 			continue
 		}
@@ -131,7 +220,31 @@ func parseStations(elements []element) []importedStation {
 		}
 		return stations[i].osmID < stations[j].osmID
 	})
-	return stations
+	for index := range lines {
+		lines[index].stationIDs = uniqueInt64(lines[index].stationIDs)
+	}
+	return stations, lines
+}
+
+func uniqueInt64(values []int64) []int64 {
+	seen := make(map[int64]bool, len(values))
+	result := make([]int64, 0, len(values))
+	for _, value := range values {
+		if !seen[value] {
+			seen[value] = true
+			result = append(result, value)
+		}
+	}
+	return result
+}
+
+func firstStationName(tags map[string]string, keys ...string) string {
+	for _, key := range keys {
+		if name := strings.TrimSpace(tags[key]); name != "" {
+			return name
+		}
+	}
+	return ""
 }
 
 func removeTrailingCommas(payload []byte) []byte {
@@ -169,7 +282,7 @@ func removeTrailingCommas(payload []byte) []byte {
 	return cleaned
 }
 
-func buildSchema(stations []importedStation, width, height float64) domain.MetroContent {
+func buildSchema(stations []importedStation, importedLines []importedLine, width, height float64) domain.MetroContent {
 	minLat, maxLat := stations[0].lat, stations[0].lat
 	minLon, maxLon := stations[0].lon, stations[0].lon
 	for _, station := range stations[1:] {
@@ -191,11 +304,6 @@ func buildSchema(stations []importedStation, width, height float64) domain.Metro
 		Stations: make([]domain.Station, 0, len(stations)),
 		Lines:    make([]domain.MetroLine, 0, len(lineColors)),
 	}
-	lineIndex := make(map[string]int)
-	for index, line := range lineColors {
-		lineIndex[line.color] = index
-	}
-	lineStations := make([][]importedStation, len(lineColors))
 	stationIDsByOSMID := make(map[int64]int, len(stations))
 	for index, station := range stations {
 		x := mapMargin + (station.lon-minLon)/lonRange*(width-2*mapMargin)
@@ -208,12 +316,28 @@ func buildSchema(stations []importedStation, width, height float64) domain.Metro
 			Latitude: &latitude, Longitude: &longitude,
 		})
 		stationIDsByOSMID[station.osmID] = stationID
-		if line, ok := lineIndex[station.color]; ok {
-			lineStations[line] = append(lineStations[line], station)
-		}
 	}
-	for index, line := range lineColors {
-		orderedStations := orderLineStations(lineStations[index])
+	if len(importedLines) == 0 {
+		fallback := importedLine{key: "fallback", name: lineName(stations[0].color, 1), color: stations[0].color}
+		for _, station := range stations {
+			fallback.stationIDs = append(fallback.stationIDs, station.osmID)
+		}
+		importedLines = []importedLine{fallback}
+	}
+	for _, line := range importedLines {
+		colorStations := make([]importedStation, 0, len(line.stationIDs))
+		for _, osmID := range line.stationIDs {
+			for _, station := range stations {
+				if station.osmID == osmID {
+					colorStations = append(colorStations, station)
+					break
+				}
+			}
+		}
+		if len(colorStations) < 2 {
+			continue
+		}
+		orderedStations := orderLineStations(colorStations)
 		if len(orderedStations) == 0 {
 			continue
 		}
@@ -291,5 +415,22 @@ func normalizeColor(value string) string {
 		"purple": "#8e44ad", "#800080": "#8e44ad", "#702082": "#8e44ad",
 		"brown": "#795548", "#a0522d": "#795548", "#8d5b2d": "#795548",
 	}
-	return colors[value]
+	if color, ok := colors[value]; ok {
+		return color
+	}
+	if len(value) == 7 && value[0] == '#' {
+		if _, err := strconv.ParseUint(value[1:], 16, 32); err == nil {
+			return value
+		}
+	}
+	return "#808080"
+}
+
+func lineName(color string, number int) string {
+	for _, line := range lineColors {
+		if line.color == color {
+			return line.name
+		}
+	}
+	return fmt.Sprintf("Линия %d", number)
 }

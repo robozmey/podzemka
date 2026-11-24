@@ -16,9 +16,6 @@ func TestFetchCityUsesOSMAreaAndKeepsCoordinates(t *testing.T) {
 			if r.URL.Query().Get("q") != "Казань" {
 				t.Errorf("Nominatim query = %q", r.URL.Query().Get("q"))
 			}
-			if r.URL.Query().Get("countrycodes") != "ru" {
-				t.Errorf("countrycodes = %q", r.URL.Query().Get("countrycodes"))
-			}
 			w.Header().Set("Content-Type", "application/json")
 			_, _ = io.WriteString(w, `[{"osm_type":"relation","osm_id":1234,"category":"boundary","type":"administrative","address":{"country":"Россия"}}]`)
 		case "/interpreter":

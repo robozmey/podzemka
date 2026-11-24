@@ -1,5 +1,10 @@
 import type { City, MetroSchema, Station, MetroLine } from '../types/metro'
 
+export type CatalogCity = {
+  name: string
+  country: string
+}
+
 export type CityPreview = {
   name: string
   slug: string
@@ -46,6 +51,34 @@ export async function previewCityByName(
   return response.json() as Promise<CityPreview>
 }
 
+export async function previewCityFile(
+  name: string,
+  file: File,
+  token: string,
+  signal?: AbortSignal,
+): Promise<CityPreview> {
+  const formData = new FormData()
+  formData.append('name', name)
+  formData.append('file', file)
+  const timeout = new AbortController()
+  const timeoutId = window.setTimeout(() => timeout.abort(), 60_000)
+  if (signal) signal.addEventListener('abort', () => timeout.abort(), { once: true })
+  try {
+    const response = await fetch('/api/cities/preview-import', {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${token}` },
+      body: formData,
+      signal: timeout.signal,
+    })
+    if (!response.ok) {
+      await throwApiError(response, 'Не удалось проверить JSON-файл')
+    }
+    return response.json() as Promise<CityPreview>
+  } finally {
+    window.clearTimeout(timeoutId)
+  }
+}
+
 export async function createCity(
   city: { name: string; slug: string },
   schema: CityPreview['schema'],
@@ -87,4 +120,14 @@ export async function getCities(signal?: AbortSignal): Promise<City[]> {
   }
 
   return response.json() as Promise<City[]>
+}
+
+export async function getCatalogCities(signal?: AbortSignal): Promise<CatalogCity[]> {
+  const response = await fetch('/api/catalog/cities', { signal })
+
+  if (!response.ok) {
+    throw new Error('Не удалось загрузить каталог городов')
+  }
+
+  return response.json() as Promise<CatalogCity[]>
 }

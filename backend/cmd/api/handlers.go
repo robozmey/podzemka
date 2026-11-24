@@ -1,6 +1,7 @@
 package main
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"errors"
@@ -49,6 +50,10 @@ func (app application) citiesHandler(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, cities)
 }
 
+func catalogCitiesHandler(w http.ResponseWriter, _ *http.Request) {
+	writeJSON(w, http.StatusOK, recommendedCities)
+}
+
 func (app application) previewImportHandler(w http.ResponseWriter, r *http.Request) {
 	r.Body = http.MaxBytesReader(w, r.Body, 10<<20)
 
@@ -60,6 +65,44 @@ func (app application) previewImportHandler(w http.ResponseWriter, r *http.Reque
 	}
 	defer r.MultipartForm.RemoveAll()
 
+	name := strings.TrimSpace(r.FormValue("name"))
+	slug := ""
+	if name != "" {
+		if len([]rune(name)) > 100 {
+			writeJSON(w, http.StatusBadRequest, map[string]string{
+				"error": "Название города должно содержать не более 100 символов",
+			})
+			return
+		}
+		slug = citySlug(name)
+		if slug == "" {
+			writeJSON(w, http.StatusBadRequest, map[string]string{
+				"error": "Не удалось сформировать slug города",
+			})
+			return
+		}
+		ctx, cancel := context.WithTimeout(r.Context(), 5*time.Second)
+		defer cancel()
+		nameExists, err := app.repo.CityExistsByName(ctx, name)
+		if err != nil {
+			writeJSON(w, http.StatusInternalServerError, map[string]string{"error": "Не удалось проверить город"})
+			return
+		}
+		if nameExists {
+			writeJSON(w, http.StatusConflict, map[string]string{"error": "Город с таким названием уже добавлен"})
+			return
+		}
+		slugExists, err := app.repo.CityExists(ctx, slug)
+		if err != nil {
+			writeJSON(w, http.StatusInternalServerError, map[string]string{"error": "Не удалось проверить slug города"})
+			return
+		}
+		if slugExists {
+			writeJSON(w, http.StatusConflict, map[string]string{"error": "Город с таким slug уже существует"})
+			return
+		}
+	}
+
 	file, _, err := r.FormFile("file")
 	if err != nil {
 		writeJSON(w, http.StatusBadRequest, map[string]string{
@@ -69,12 +112,25 @@ func (app application) previewImportHandler(w http.ResponseWriter, r *http.Reque
 	}
 	defer file.Close()
 
-	schema, err := overpass.Parse(file, overpass.MapWidth, overpass.MapHeight)
+	data, err := io.ReadAll(file)
 	if err != nil {
-		writeJSON(w, http.StatusBadRequest, map[string]string{
-			"error": "Не удалось разобрать файл Overpass",
-		})
+		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "Не удалось прочитать JSON-файл"})
 		return
+	}
+	// PowerShell and some Windows editors may save UTF-8 JSON with a BOM.
+	// encoding/json does not accept the BOM as the first byte, although it is
+	// harmless for a JSON import, so remove it before parsing.
+	data = bytes.TrimPrefix(data, []byte{0xEF, 0xBB, 0xBF})
+
+	var schema domain.MetroContent
+	if err := json.Unmarshal(data, &schema); err != nil || schema.Stations == nil || schema.Lines == nil {
+		schema, err = overpass.Parse(bytes.NewReader(data), overpass.MapWidth, overpass.MapHeight)
+		if err != nil {
+			writeJSON(w, http.StatusBadRequest, map[string]string{
+				"error": "Не удалось разобрать JSON-файл схемы или Overpass",
+			})
+			return
+		}
 	}
 
 	if err := schema.Validate(); err != nil {
@@ -83,8 +139,22 @@ func (app application) previewImportHandler(w http.ResponseWriter, r *http.Reque
 		})
 		return
 	}
+	if len(schema.Stations) == 0 || len(schema.Lines) == 0 {
+		writeJSON(w, http.StatusBadRequest, map[string]string{
+			"error": "Файл не содержит непустую схему метро",
+		})
+		return
+	}
+	if len(schema.Stations) >= 20 && len(schema.Lines) < 2 {
+		writeJSON(w, http.StatusBadRequest, map[string]string{
+			"error": "Файл похож на ошибочную схему: для большого города найдена только одна линия. Загрузите исходный Overpass JSON заново",
+		})
+		return
+	}
 
 	writeJSON(w, http.StatusOK, map[string]any{
+		"name":          name,
+		"slug":          slug,
 		"stationsCount": len(schema.Stations),
 		"linesCount":    len(schema.Lines),
 		"schema":        schema,
@@ -133,24 +203,30 @@ func (app application) createCityHandler(w http.ResponseWriter, r *http.Request)
 		})
 		return
 	}
+	if len(content.Stations) == 0 || len(content.Lines) == 0 {
+		writeJSON(w, http.StatusBadRequest, map[string]string{
+			"error": "Схема метро должна содержать станции и линии",
+		})
+		return
+	}
 
 	ctx, cancel := context.WithTimeout(r.Context(), 10*time.Second)
 	defer cancel()
 
-	// nameExists, err := app.repo.CityExistsByName(ctx, request.Name)
-	// if err != nil {
-	// 	log.Printf("check city name before create: %v", err)
-	// 	writeJSON(w, http.StatusInternalServerError, map[string]string{
-	// 		"error": "Не удалось проверить город",
-	// 	})
-	// 	return
-	// }
-	// if nameExists {
-	// 	writeJSON(w, http.StatusConflict, map[string]string{
-	// 		"error": "Город с таким названием уже добавлен",
-	// 	})
-	// 	return
-	// }
+	nameExists, err := app.repo.CityExistsByName(ctx, request.Name)
+	if err != nil {
+		log.Printf("check city name before create: %v", err)
+		writeJSON(w, http.StatusInternalServerError, map[string]string{
+			"error": "Не удалось проверить город",
+		})
+		return
+	}
+	if nameExists {
+		writeJSON(w, http.StatusConflict, map[string]string{
+			"error": "Город с таким названием уже добавлен",
+		})
+		return
+	}
 
 	exists, err := app.repo.CityExists(ctx, request.Slug)
 	if err != nil {

@@ -79,23 +79,26 @@ func (app application) previewCityHandler(w http.ResponseWriter, r *http.Request
 		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "Не удалось сформировать адрес города из названия"})
 		return
 	}
-	// nameExists, err := app.repo.CityExistsByName(ctx, request.Name)
-	// if err != nil {
-	// 	log.Printf("check city name %q: %v", request.Name, err)
-	// 	writeJSON(w, http.StatusInternalServerError, map[string]string{"error": "Не удалось проверить существование города"})
-	// 	return
-	// }
-	// slugExists, err := app.repo.CityExists(ctx, baseSlug)
-	// if err != nil {
-	// 	log.Printf("check city slug %q: %v", baseSlug, err)
-	// 	writeJSON(w, http.StatusInternalServerError, map[string]string{"error": "Не удалось проверить адрес города"})
-	// 	return
-	// }
-	// if nameExists || slugExists {
-	// 	writeJSON(w, http.StatusConflict, map[string]string{"error": fmt.Sprintf("Город «%s» уже добавлен", request.Name)})
-	// 	return
-	// }
-
+	nameExists, err := app.repo.CityExistsByName(ctx, request.Name)
+	if err != nil {
+		log.Printf("check city name %q: %v", request.Name, err)
+		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": "Не удалось проверить существование города"})
+		return
+	}
+	if nameExists {
+		writeJSON(w, http.StatusConflict, map[string]string{"error": fmt.Sprintf("Город «%s» уже добавлен", request.Name)})
+		return
+	}
+	slugExists, err := app.repo.CityExists(ctx, baseSlug)
+	if err != nil {
+		log.Printf("check city slug %q: %v", baseSlug, err)
+		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": "Не удалось проверить адрес города"})
+		return
+	}
+	if slugExists {
+		writeJSON(w, http.StatusConflict, map[string]string{"error": fmt.Sprintf("Город с адресом «%s» уже добавлен", baseSlug)})
+		return
+	}
 	previewCity := app.previewCity
 	if previewCity == nil {
 		previewCity = overpass.FetchCity
@@ -127,6 +130,12 @@ func (app application) previewCityHandler(w http.ResponseWriter, r *http.Request
 		log.Printf("invalid preview for city %q: %v", request.Name, err)
 		writeJSON(w, http.StatusBadGateway, map[string]string{
 			"error": "OpenStreetMap вернул некорректную схему",
+		})
+		return
+	}
+	if len(content.Stations) == 0 || len(content.Lines) == 0 {
+		writeJSON(w, http.StatusUnprocessableEntity, map[string]string{
+			"error": fmt.Sprintf("Для города «%s» не удалось построить непустую схему метро", request.Name),
 		})
 		return
 	}

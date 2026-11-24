@@ -7,14 +7,15 @@ type City struct {
 }
 
 type Station struct {
-	ID        int      `json:"id"`
-	Name      string   `json:"name"`
-	X         int      `json:"x"`
-	Y         int      `json:"y"`
-	CityID    int      `json:"-"`
-	Year      int      `json:"year,omitempty"`
-	Latitude  *float64 `json:"lat,omitempty"`
-	Longitude *float64 `json:"lon,omitempty"`
+	ID          int      `json:"id"`
+	Name        string   `json:"name"`
+	Description string   `json:"description,omitempty"`
+	X           int      `json:"x"`
+	Y           int      `json:"y"`
+	CityID      int      `json:"-"`
+	Year        int      `json:"year,omitempty"`
+	Latitude    *float64 `json:"lat,omitempty"`
+	Longitude   *float64 `json:"lon,omitempty"`
 }
 
 type MetroLine struct {

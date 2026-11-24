@@ -6,7 +6,7 @@ import YearTimeline, {
 import type { MetroSchema, Station } from '../types/metro'
 import './MetroMap.css'
 import { arrangeLabels, type LabelPlacement } from './labelLayout'
-// import { GeographicMetroMap } from './GeographicMetroMap'
+import { GeographicMetroMap } from './GeographicMetroMap'
 
 type MetroMapProps = {
   schema: MetroSchema
@@ -19,6 +19,7 @@ export function MetroMap({ schema }: MetroMapProps) {
   const [selectedYear, setSelectedYear] = useState(
     range.end,
   )
+  const [viewMode, setViewMode] = useState<'schematic' | 'geographic'>('geographic')
   const svgRef = useRef<SVGSVGElement>(null)
   const [labelPlacements, setLabelPlacements] = useState<LabelPlacement[]>([])
 
@@ -40,15 +41,33 @@ export function MetroMap({ schema }: MetroMapProps) {
     && schema.stations.every((station) => (
       Number.isFinite(station.lat)
       && Number.isFinite(station.lon)
-      && station.lat! >= -90
-      && station.lat! <= 90
-      && station.lon! >= -180
-      && station.lon! <= 180
     ))
   const stationById = new Map(visibleStations.map((station) => [station.id, station]),)
+  const coordinateBounds = schema.stations.reduce(
+    (bounds, station) => ({
+      minX: Math.min(bounds.minX, station.x),
+      maxX: Math.max(bounds.maxX, station.x),
+      minY: Math.min(bounds.minY, station.y),
+      maxY: Math.max(bounds.maxY, station.y),
+    }),
+    {
+      minX: Number.POSITIVE_INFINITY,
+      maxX: Number.NEGATIVE_INFINITY,
+      minY: Number.POSITIVE_INFINITY,
+      maxY: Number.NEGATIVE_INFINITY,
+    },
+  )
+  const coordinateWidth = Math.max(1, coordinateBounds.maxX - coordinateBounds.minX)
+  const coordinateHeight = Math.max(1, coordinateBounds.maxY - coordinateBounds.minY)
+  const coordinateScale = schema.city.slug === 'saint-petersburg'
+    ? 1
+    : Math.min(640 / coordinateWidth, 360 / coordinateHeight)
+  const coordinateTransform = schema.city.slug === 'saint-petersburg'
+    ? undefined
+    : `translate(${(700 - coordinateWidth * coordinateScale) / 2 - coordinateBounds.minX * coordinateScale} ${(420 - coordinateHeight * coordinateScale) / 2 - coordinateBounds.minY * coordinateScale}) scale(${coordinateScale})`
   useLayoutEffect(() => {
     const svg = svgRef.current
-    if (!svg || hasGeographicCoordinates) return
+    if (!svg) return
 
     const textElements = svg.querySelectorAll<SVGTextElement>(
       '.station__label',
@@ -116,7 +135,7 @@ export function MetroMap({ schema }: MetroMapProps) {
     )
 
     setLabelPlacements(result.placements)
-  }, [schema, year, hasGeographicCoordinates])
+  }, [schema, year])
 
   const placementById = new Map(
     labelPlacements.map((placement) => [
@@ -137,16 +156,35 @@ export function MetroMap({ schema }: MetroMapProps) {
         />
       )}
 
-      {/* {hasGeographicCoordinates && (
+      {hasGeographicCoordinates && (
+        <div className="metro-map__view-switcher" role="group" aria-label="Режим отображения карты">
+          <button
+            type="button"
+            className={viewMode === 'geographic' ? 'is-active' : ''}
+            onClick={() => setViewMode('geographic')}
+          >
+            Географическая карта
+          </button>
+          <button
+            type="button"
+            className={viewMode === 'schematic' ? 'is-active' : ''}
+            onClick={() => setViewMode('schematic')}
+          >
+            Схема метро
+          </button>
+        </div>
+      )}
+
+      {hasGeographicCoordinates && viewMode === 'geographic' && (
         <GeographicMetroMap
           schema={schema}
           visibleStations={visibleStations}
         />
-      )} */}
+      )}
 
       <svg
         ref={svgRef}
-        style={{ display: hasGeographicCoordinates ? 'none' : undefined }}
+        style={{ display: viewMode === 'geographic' && hasGeographicCoordinates ? 'none' : undefined }}
         className="metro-map"
         viewBox="0 0 700 420"
         role="img"
@@ -174,6 +212,7 @@ export function MetroMap({ schema }: MetroMapProps) {
             preserveAspectRatio="xMidYMid slice"
           />
         )}
+        <g transform={coordinateTransform}>
         {schema.lines.map((line) => {
           const stations = line.stations
             .map((stationId) => stationById.get(stationId))
@@ -219,25 +258,26 @@ export function MetroMap({ schema }: MetroMapProps) {
         {hoveredStation && (
           <foreignObject
             className="station__tooltip"
-            x={hoveredStation.x > 460 ? hoveredStation.x - 238 : hoveredStation.x + 18}
+              x={hoveredStation.x > 460 ? hoveredStation.x - 198 : hoveredStation.x + 14}
             y={Math.max(10, Math.min(hoveredStation.y - 45, 280))}
-            width="220"
-            height="130"
+              width="180"
+              height="105"
             onPointerLeave={() => setHoveredStation(null)}
           >
             <div className="station__tooltip-content">
-              <strong>{hoveredStation.name}</strong>
+              <strong>Станция: {hoveredStation.name}</strong>
+              <p>Год открытия: {hoveredStation.year ?? 'не указан'}</p>
               <p>
                 Линии: {schema.lines
                   .filter((line) => line.stations.includes(hoveredStation.id))
                   .map((line) => line.name)
                   .join(', ') || 'не указаны'}
               </p>
-              <p>Год открытия: {hoveredStation.year || "не указан"}.</p>
-              <p>Здесь можно разместить описание станции.</p>
+              <p>Доп. информация: {hoveredStation.description || 'будет добавлена позже'}.</p>
             </div>
           </foreignObject>
         )}
+        </g>
       </svg>
     </div>
   )

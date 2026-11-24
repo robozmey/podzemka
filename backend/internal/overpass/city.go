@@ -19,7 +19,7 @@ import (
 const (
 	nominatimSearchURL = "https://nominatim.openstreetmap.org/search"
 	maxImportResponse  = 10 << 20
-	geocoderAttempt    = 6 * time.Second
+	geocoderAttempt    = 15 * time.Second
 	overpassAttempt    = 95 * time.Second
 	overpassFallback   = 25 * time.Second
 )
@@ -46,7 +46,7 @@ type placeResult struct {
 func FetchCity(ctx context.Context, name string) (domain.MetroContent, error) {
 	client := &http.Client{Timeout: 97 * time.Second}
 	return fetchCityWithFallbacks(ctx, name, client,
-		serviceEndpoints("NOMINATIM_URL", nominatimSearchURL, "https://nominatim.openstreetmap.fr/search"),
+		serviceEndpoints("NOMINATIM_URL", nominatimSearchURL, "https://nominatim.openstreetmap.fr/search", "https://photon.komoot.io/api/"),
 		serviceEndpoints("OVERPASS_URL", "https://overpass-api.de/api/interpreter", "https://overpass.kumi.systems/api/interpreter", "https://overpass.private.coffee/api/interpreter"),
 	)
 }
@@ -137,6 +137,9 @@ func fetchArea(ctx context.Context, _ string, client httpDoer, areaID int64, ove
 	if err := schema.Validate(); err != nil {
 		return domain.MetroContent{}, fmt.Errorf("проверить схему города: %w", err)
 	}
+	if len(schema.Stations) >= 20 && len(schema.Lines) < 2 {
+		return domain.MetroContent{}, errors.New("OSM вернул станции, но не вернул маршруты метро: схема выглядит как одна ошибочная линия")
+	}
 	return schema, nil
 }
 
@@ -159,13 +162,16 @@ func postOverpassQuery(ctx context.Context, client httpDoer, overpassURL, query 
 }
 
 func findCityArea(ctx context.Context, client httpDoer, endpoint, name string) (int64, error) {
+	if strings.Contains(endpoint, "photon.komoot.io") {
+		return findCityAreaPhoton(ctx, client, endpoint, name)
+	}
+
 	parsedURL, err := url.Parse(endpoint)
 	if err != nil {
 		return 0, fmt.Errorf("адрес Nominatim некорректен: %w", err)
 	}
 	query := parsedURL.Query()
 	query.Set("q", strings.TrimSpace(name))
-	query.Set("countrycodes", "ru")
 	query.Set("format", "jsonv2")
 	query.Set("addressdetails", "1")
 	query.Set("limit", "20")
@@ -199,9 +205,6 @@ func findCityArea(ctx context.Context, client httpDoer, endpoint, name string) (
 		if (!isAdministrativeBoundary && !isNamedCityArea) || place.OSMID <= 0 {
 			continue
 		}
-		if place.Address.Country != "" && !strings.EqualFold(place.Address.Country, "Россия") && !strings.EqualFold(place.Address.Country, "Russia") {
-			continue
-		}
 		switch place.OSMType {
 		case "relation":
 			return 3_600_000_000 + place.OSMID, nil
@@ -212,19 +215,92 @@ func findCityArea(ctx context.Context, client httpDoer, endpoint, name string) (
 	return 0, fmt.Errorf("%w: «%s» в России", ErrCityAreaNotFound, name)
 }
 
+type photonResponse struct {
+	Features []struct {
+		Properties struct {
+			OSMType     string `json:"osm_type"`
+			OSMID       int64  `json:"osm_id"`
+			Type        string `json:"type"`
+			CountryCode string `json:"countrycode"`
+		} `json:"properties"`
+	} `json:"features"`
+}
+
+func findCityAreaPhoton(ctx context.Context, client httpDoer, endpoint, name string) (int64, error) {
+	parsedURL, err := url.Parse(endpoint)
+	if err != nil {
+		return 0, fmt.Errorf("адрес Photon некорректен: %w", err)
+	}
+	query := parsedURL.Query()
+	query.Set("q", strings.TrimSpace(name))
+	query.Set("limit", "20")
+	parsedURL.RawQuery = query.Encode()
+
+	request, err := http.NewRequestWithContext(ctx, http.MethodGet, parsedURL.String(), nil)
+	if err != nil {
+		return 0, fmt.Errorf("подготовить запрос Photon: %w", err)
+	}
+	request.Header.Set("Accept", "application/json")
+	request.Header.Set("Accept-Language", "ru,en")
+	request.Header.Set("User-Agent", osmUserAgent())
+
+	response, err := client.Do(request)
+	if err != nil {
+		return 0, fmt.Errorf("запрос Photon: %w", err)
+	}
+	defer response.Body.Close()
+	data, err := readAPIResponse(response)
+	if err != nil {
+		return 0, fmt.Errorf("Photon: %w", err)
+	}
+
+	var places photonResponse
+	if err := json.Unmarshal(data, &places); err != nil {
+		return 0, fmt.Errorf("разобрать ответ Photon: %w", err)
+	}
+	for _, place := range places.Features {
+		if place.Properties.OSMID <= 0 || (place.Properties.Type != "city" && place.Properties.Type != "town") {
+			continue
+		}
+		switch strings.ToUpper(place.Properties.OSMType) {
+		case "R":
+			return 3_600_000_000 + place.Properties.OSMID, nil
+		case "W":
+			return 2_400_000_000 + place.Properties.OSMID, nil
+		}
+	}
+	return 0, fmt.Errorf("%w: «%s»", ErrCityAreaNotFound, name)
+}
+
 func stationsQuery(areaID int64) string {
 	return fmt.Sprintf(`[out:json][timeout:60];
 area(%d)->.city;
-node
-	["station"="subway"]
-	["railway"="station"]
-	["subway"="yes"]
-	["construction"!~".*"]
-	["proposed"!~".*"]
-	["disused"!~".*"]
-	["abandoned"!~".*"]
-	(area.city);
-out body;`, areaID)
+(
+  node
+    ["railway"="station"]
+    ["station"="subway"]
+    ["construction"!~".*"]
+    ["proposed"!~".*"]
+    ["disused"!~".*"]
+    ["abandoned"!~".*"]
+    (area.city);
+  node
+    ["railway"="station"]
+    ["subway"="yes"]
+    ["construction"!~".*"]
+    ["proposed"!~".*"]
+    ["disused"!~".*"]
+    ["abandoned"!~".*"]
+    (area.city);
+  relation
+    ["type"="route"]
+    ["route"~"^(subway|light_rail)$"]
+    (area.city);
+);
+out body;
+>;
+out body;
+`, areaID)
 }
 
 func osmUserAgent() string {

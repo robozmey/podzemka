@@ -49,6 +49,7 @@ func main() {
 	mux.HandleFunc("GET /", helloHandler)
 	mux.HandleFunc("GET /health", healthHandler)
 	mux.HandleFunc("GET /api/cities", app.citiesHandler)
+	mux.HandleFunc("GET /api/catalog/cities", catalogCitiesHandler)
 	adminToken := os.Getenv("ADMIN_TOKEN")
 	mux.Handle("GET /api/admin/session", adminOnly(adminToken, http.HandlerFunc(adminSessionHandler)))
 	mux.Handle("POST /api/admin/cities/preview", adminOnly(adminToken, http.HandlerFunc(app.previewCityHandler)))

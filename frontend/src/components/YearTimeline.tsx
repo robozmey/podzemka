@@ -63,15 +63,19 @@ export function getCityTimeline(schema: MetroSchema) {
       : [],
   );
   const currentYear = new Date().getFullYear();
-  const start = years.length > 0 ? Math.min(...years) : currentYear;
+  const start = years.length > 0 ? Math.min(...years) : 1900;
   const end = years.length > 0
     ? Math.max(currentYear, ...years)
     : currentYear;
 
   return {
     range: knownRange ?? { label: schema.city.name, start, end },
-    marks: knownRange ? CITY_YEAR_MARKS[city as MetroCitySlug] : [],
-    hasYears: knownRange !== undefined || years.length > 0,
+    marks: knownRange
+      ? CITY_YEAR_MARKS[city as MetroCitySlug]
+      : years.length > 0
+        ? [{ year: start, label: "Первые найденные даты станций" }]
+        : [{ year: start, label: "Исторический диапазон схемы" }],
+    hasYears: true,
   };
 }
 
