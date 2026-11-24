@@ -37,6 +37,11 @@ func TestFetchCityUsesOSMAreaAndKeepsCoordinates(t *testing.T) {
 				`["proposed"!~".*"]`,
 				`["disused"!~".*"]`,
 				`["abandoned"!~".*"]`,
+				`relation(br.routes)["type"="route_master"]["route_master"="subway"]->.masters;`,
+				`node(r.routes)->.routeNodes;`,
+				`relation(bn.stationNodes)["public_transport"="stop_area"]->.stopAreas;`,
+				`node(r.stopAreas)["railway"="station"]->.areaStations;`,
+				`(.stations; .routes; .masters; .routeNodes; .stopAreas; .areaStations;);`,
 			} {
 				if !strings.Contains(query, required) {
 					t.Errorf("station query missing %q", required)

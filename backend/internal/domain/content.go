@@ -69,6 +69,22 @@ func (s MetroContent) Validate() error {
 			}
 			seen[id] = true
 		}
+		seenEdges := make(map[[2]int]bool)
+		for _, edge := range line.Edges {
+			if !seen[edge[0]] || !seen[edge[1]] {
+				return fmt.Errorf("line %d edge references a station outside the line", line.ID)
+			}
+			if edge[0] == edge[1] {
+				return fmt.Errorf("line %d has a self edge at station %d", line.ID, edge[0])
+			}
+			if edge[0] > edge[1] {
+				edge[0], edge[1] = edge[1], edge[0]
+			}
+			if seenEdges[edge] {
+				return fmt.Errorf("line %d has duplicate edge %v", line.ID, edge)
+			}
+			seenEdges[edge] = true
+		}
 	}
 	return nil
 }

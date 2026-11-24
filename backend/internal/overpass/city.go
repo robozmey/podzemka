@@ -21,7 +21,6 @@ const (
 	maxImportResponse  = 10 << 20
 	geocoderAttempt    = 6 * time.Second
 	overpassAttempt    = 95 * time.Second
-	overpassFallback   = 25 * time.Second
 )
 
 var (
@@ -90,12 +89,8 @@ func fetchCityWithFallbacks(ctx context.Context, name string, client httpDoer, n
 	}
 
 	for index, endpoint := range overpassURLs {
-		attemptTimeout := overpassFallback
-		if index == 0 {
-			attemptTimeout = overpassAttempt
-		}
 		started := time.Now()
-		attemptCtx, cancel := context.WithTimeout(ctx, attemptTimeout)
+		attemptCtx, cancel := context.WithTimeout(ctx, overpassAttempt)
 		content, err := fetchArea(attemptCtx, name, client, areaID, endpoint)
 		cancel()
 		log.Printf("OSM Overpass attempt %d/%d took %s: %v", index+1, len(overpassURLs), time.Since(started).Round(time.Millisecond), err)
@@ -223,7 +218,14 @@ node
 	["proposed"!~".*"]
 	["disused"!~".*"]
 	["abandoned"!~".*"]
-	(area.city);
+	(area.city)->.stations;
+relation["route"="subway"](area.city)->.routes;
+relation(br.routes)["type"="route_master"]["route_master"="subway"]->.masters;
+node(r.routes)->.routeNodes;
+(.stations; .routeNodes;)->.stationNodes;
+relation(bn.stationNodes)["public_transport"="stop_area"]->.stopAreas;
+node(r.stopAreas)["railway"="station"]->.areaStations;
+(.stations; .routes; .masters; .routeNodes; .stopAreas; .areaStations;);
 out body;`, areaID)
 }
 
@@ -235,9 +237,6 @@ func osmUserAgent() string {
 }
 
 func readAPIResponse(response *http.Response) ([]byte, error) {
-	if response.StatusCode < http.StatusOK || response.StatusCode >= http.StatusMultipleChoices {
-		return nil, fmt.Errorf("сервер вернул HTTP %d", response.StatusCode)
-	}
 	data, err := io.ReadAll(io.LimitReader(response.Body, maxImportResponse+1))
 	if err != nil {
 		return nil, fmt.Errorf("прочитать ответ сервера: %w", err)
@@ -245,5 +244,14 @@ func readAPIResponse(response *http.Response) ([]byte, error) {
 	if len(data) > maxImportResponse {
 		return nil, errors.New("ответ сервера превышает 10 МБ")
 	}
+
+	if response.StatusCode < http.StatusOK || response.StatusCode >= http.StatusMultipleChoices {
+		return nil, fmt.Errorf(
+			"сервер вернул HTTP %d: %s",
+			response.StatusCode,
+			string(data),
+		)
+	}
+
 	return data, nil
 }

@@ -22,6 +22,8 @@ type MetroLine struct {
 	Name     string `json:"name"`
 	Color    string `json:"color"`
 	Stations []int  `json:"stations"`
+	// Nil means connectivity has not been provided (including legacy schemas).
+	Edges [][2]int `json:"edges"`
 }
 
 type MetroSchema struct {
