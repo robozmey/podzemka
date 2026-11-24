@@ -33,6 +33,33 @@
   user-select: none;
 }
 
+.station__label {
+  visibility: hidden;
+  pointer-events: none;
+}
+
+.station__label--visible {
+  visibility: visible;
+}
+
+.geographic-metro-map .station__label {
+  font-size: 4.5px;
+  stroke: var(--surface-bg);
+  stroke-width: 1.5px;
+}
+
+.station__hover-label {
+  fill: var(--text-color);
+  font-size: 7px;
+  font-weight: 600;
+  paint-order: stroke;
+  stroke: var(--surface-bg);
+  stroke-width: 3px;
+  stroke-linejoin: round;
+  pointer-events: none;
+  user-select: none;
+}
+
 
 .station__tooltip-content {
   box-sizing: border-box;

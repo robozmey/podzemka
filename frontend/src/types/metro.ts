@@ -19,6 +19,7 @@ export type MetroLine = {
   name: string
   color: string
   stations: number[]
+  edges?: [number, number][] | null
 }
 
 export type MetroSchema = {

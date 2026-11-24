@@ -6,6 +6,7 @@ import './MetroMap.css'
 import { arrangeLabels, type LabelPlacement } from './labelLayout'
 import { MetroInfoPanel } from './MetroInfoPanel'
 import { GeographicMetroMap } from './GeographicMetroMap'
+import { getVisibleLineEdges } from './metroEdges'
 
 type MetroMapProps = {
   schema: MetroSchema
@@ -125,18 +126,14 @@ export function MetroMap({ schema }: MetroMapProps) {
       radius: 2,
     }))
 
-    const lineSegments = schema.lines.flatMap((line) => {
-      const points = line.stations
-        .map((id) => stationById.get(id))
-        .filter((station): station is Station => station !== undefined)
-
-      return points.slice(1).map((point, index) => ({
-        x1: points[index].x,
-        y1: points[index].y,
-        x2: point.x,
-        y2: point.y,
+    const lineSegments = schema.lines.flatMap((line) =>
+      getVisibleLineEdges(line, stationById).map(([from, to]) => ({
+        x1: from.x,
+        y1: from.y,
+        x2: to.x,
+        y2: to.y,
       }))
-    })
+    )
 
     const result = arrangeLabels(
       labels,
@@ -161,6 +158,7 @@ export function MetroMap({ schema }: MetroMapProps) {
 
   const toggleLine = (id: number) => {
     setSelectedStationId(null)
+    setHoveredStation(null)
     setSelectedLineId((current) => current === id ? null : id)
   }
 
@@ -206,6 +204,13 @@ export function MetroMap({ schema }: MetroMapProps) {
             <GeographicMetroMap
               schema={schema}
               visibleStations={visibleStations}
+              selectedStationId={selectedStationId}
+              selectedLineId={selectedLineId}
+              highlightedLineIds={highlightedLineIds}
+              hoveredStation={hoveredStation}
+              onStationClick={toggleStation}
+              onLineClick={toggleLine}
+              onStationHover={setHoveredStation}
             />
           )}
 
@@ -216,23 +221,8 @@ export function MetroMap({ schema }: MetroMapProps) {
             }}
             className="metro-map"
             viewBox="0 0 700 420"
-            role="img"
+            role="group"
             aria-label={`Схема метро: ${schema.city.name}`}
-            onPointerOver={(event) => {
-              if (!(event.target instanceof Element)) return
-
-              const group = event.target.closest<SVGGElement>(
-                '[data-station-id]'
-              )
-              if (!group) return
-
-              const stationId = Number(group.dataset.stationId)
-              const station = visibleStations.find(
-                (item) => item.id === stationId
-              )
-
-              if (station) setHoveredStation(station)
-            }}
             onPointerLeave={() => setHoveredStation(null)}
           >
             {schema.city.slug === 'saint-petersburg' && (
@@ -248,21 +238,17 @@ export function MetroMap({ schema }: MetroMapProps) {
             )}
 
             {schema.lines.map((line) => {
-              const stations = line.stations
-                .map((stationId) => stationById.get(stationId))
-                .filter(
-                  (station): station is Station =>
-                    station !== undefined
-                )
+              const edges = getVisibleLineEdges(line, stationById)
+              if (edges.length === 0) return null
 
-              const points = stations
-                .map(({ x, y }) => `${x},${y}`)
+              const path = edges
+                .map(([from, to]) => `M ${from.x},${from.y} L ${to.x},${to.y}`)
                 .join(' ')
 
               return (
                 <g key={line.id}>
-                  <polyline
-                    points={points}
+                  <path
+                    d={path}
                     fill="none"
                     stroke={line.color}
                     strokeLinecap="round"
@@ -279,8 +265,8 @@ export function MetroMap({ schema }: MetroMapProps) {
                     pointerEvents="none"
                   />
 
-                  <polyline
-                    points={points}
+                  <path
+                    d={path}
                     fill="none"
                     stroke="transparent"
                     strokeWidth="12"
@@ -291,6 +277,7 @@ export function MetroMap({ schema }: MetroMapProps) {
                     role="button"
                     tabIndex={0}
                     aria-label={`Информация о линии ${line.name}`}
+                    aria-pressed={selectedLineId === line.id}
                     onClick={() => toggleLine(line.id)}
                     onKeyDown={(event) => {
                       if (
@@ -321,7 +308,12 @@ export function MetroMap({ schema }: MetroMapProps) {
                   role="button"
                   tabIndex={0}
                   aria-label={`Выбрать станцию ${station.name}`}
+                  aria-pressed={selectedStationId === station.id}
                   onClick={() => toggleStation(station.id)}
+                  onPointerEnter={() => setHoveredStation(station)}
+                  onPointerLeave={() => setHoveredStation(null)}
+                  onFocus={() => setHoveredStation(station)}
+                  onBlur={() => setHoveredStation(null)}
                   onKeyDown={(event) => {
                     if (
                       event.key === 'Enter' ||
@@ -339,7 +331,10 @@ export function MetroMap({ schema }: MetroMapProps) {
                   />
 
                   <text
-                    className="station__label"
+                    className={`station__label ${
+                      selectedStationId === station.id
+                        ? 'station__label--visible' : ''
+                    }`}
                     data-station-id={station.id}
                     x={placement?.x ?? station.x}
                     y={placement?.y ?? station.y + 5.6}

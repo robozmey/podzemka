@@ -30,11 +30,18 @@ type response struct {
 type rawElement = element
 
 type element struct {
-	Type string            `json:"type"`
-	ID   int64             `json:"id"`
-	Lat  float64           `json:"lat"`
-	Lon  float64           `json:"lon"`
-	Tags map[string]string `json:"tags"`
+	Type    string            `json:"type"`
+	ID      int64             `json:"id"`
+	Lat     float64           `json:"lat"`
+	Lon     float64           `json:"lon"`
+	Tags    map[string]string `json:"tags"`
+	Members []relationMember  `json:"members"`
+}
+
+type relationMember struct {
+	Type string `json:"type"`
+	Ref  int64  `json:"ref"`
+	Role string `json:"role"`
 }
 
 type importedStation struct {
@@ -71,7 +78,29 @@ func Parse(input io.Reader, width, height float64) (domain.MetroContent, error) 
 	if len(stations) == 0 {
 		return domain.MetroContent{}, ErrNoStations
 	}
-	return buildSchema(stations, width, height), nil
+
+	routeCount := 0
+
+	for _, item := range data.Elements {
+		if item.Type != "relation" || item.Tags["route"] != "subway" {
+			continue
+		}
+
+		routeCount++
+
+		fmt.Printf(
+			"OSM route: id=%d, ref=%q, name=%q, colour=%q, members=%d\n",
+			item.ID,
+			item.Tags["ref"],
+			item.Tags["name"],
+			item.Tags["colour"],
+			len(item.Members),
+		)
+	}
+
+	fmt.Printf("Всего маршрутов OSM: %d\n", routeCount)
+
+	return buildSchemaWithRoutes(stations, data.Elements, width, height), nil
 }
 
 func parseElements(input io.Reader) (response, error) {
@@ -102,6 +131,15 @@ func parseStations(elements []element) []importedStation {
 			continue
 		}
 		if item.Tags["station"] != "subway" && item.Tags["subway"] != "yes" {
+			continue
+		}
+		// Route stop positions and platforms describe service points, not
+		// additional passenger stations. Keep supporting station-only exports
+		// that omit railway=station.
+		if railway := item.Tags["railway"]; railway != "" && railway != "station" {
+			continue
+		}
+		if item.Tags["public_transport"] == "stop_position" || item.Tags["public_transport"] == "platform" {
 			continue
 		}
 		name := strings.TrimSpace(item.Tags["name:ru"])
@@ -169,7 +207,18 @@ func removeTrailingCommas(payload []byte) []byte {
 	return cleaned
 }
 
-func buildSchema(stations []importedStation, width, height float64) domain.MetroContent {
+func buildSchema(
+	stations []importedStation,
+	width, height float64,
+) domain.MetroContent {
+	return buildSchemaWithRoutes(stations, nil, width, height)
+}
+
+func buildSchemaWithRoutes(
+	stations []importedStation,
+	elements []element,
+	width, height float64,
+) domain.MetroContent {
 	minLat, maxLat := stations[0].lat, stations[0].lat
 	minLon, maxLon := stations[0].lon, stations[0].lon
 	for _, station := range stations[1:] {
@@ -191,41 +240,66 @@ func buildSchema(stations []importedStation, width, height float64) domain.Metro
 		Stations: make([]domain.Station, 0, len(stations)),
 		Lines:    make([]domain.MetroLine, 0, len(lineColors)),
 	}
-	lineIndex := make(map[string]int)
-	for index, line := range lineColors {
-		lineIndex[line.color] = index
-	}
-	lineStations := make([][]importedStation, len(lineColors))
+
 	stationIDsByOSMID := make(map[int64]int, len(stations))
+
 	for index, station := range stations {
 		x := mapMargin + (station.lon-minLon)/lonRange*(width-2*mapMargin)
 		y := mapMargin + (maxLat-station.lat)/latRange*(height-2*mapMargin)
+
 		stationID := index + 1
 		latitude, longitude := station.lat, station.lon
+
 		out.Stations = append(out.Stations, domain.Station{
 			ID: stationID, Name: station.name,
 			X: int(x + 0.5), Y: int(y + 0.5), Year: station.year,
 			Latitude: &latitude, Longitude: &longitude,
 		})
+
 		stationIDsByOSMID[station.osmID] = stationID
-		if line, ok := lineIndex[station.color]; ok {
-			lineStations[line] = append(lineStations[line], station)
-		}
 	}
-	for index, line := range lineColors {
-		orderedStations := orderLineStations(lineStations[index])
-		if len(orderedStations) == 0 {
-			continue
+
+	resolver := newStationResolver(stations, elements)
+	for _, line := range collectLines(stations, elements, resolver) {
+		orderedStations := orderLineStations(line.stations)
+		if fromOSM := routeStationOrder(line.stations, line.routes, resolver); len(fromOSM) == len(line.stations) && len(fromOSM) >= 2 {
+			orderedStations = fromOSM
 		}
 		stationIDs := make([]int, 0, len(orderedStations))
 		for _, station := range orderedStations {
 			stationIDs = append(stationIDs, stationIDsByOSMID[station.osmID])
 		}
+		var edges [][2]int
+		if line.edges != nil {
+			edges = make([][2]int, 0, len(line.edges))
+			for _, source := range line.edges {
+				edge := [2]int{stationIDsByOSMID[source[0]], stationIDsByOSMID[source[1]]}
+				if edge[0] > edge[1] {
+					edge[0], edge[1] = edge[1], edge[0]
+				}
+				edges = append(edges, edge)
+			}
+		}
 		out.Lines = append(out.Lines, domain.MetroLine{
-			ID: len(out.Lines) + 1, Name: line.name, Color: line.color, Stations: stationIDs,
+			ID: len(out.Lines) + 1, Name: line.name, Color: line.color, Stations: stationIDs, Edges: edges,
 		})
 	}
+
 	return out
+}
+
+func routeStationOrder(stations []importedStation, routes []element, resolver *stationResolver) []importedStation {
+	var best []importedStation
+	for _, route := range routes {
+		ordered := resolver.routeStations(route)
+		if len(ordered) > len(best) {
+			best = ordered
+		}
+	}
+	if len(best) != len(stations) {
+		return nil
+	}
+	return best
 }
 
 func orderLineStations(stations []importedStation) []importedStation {
@@ -283,6 +357,7 @@ func parseYear(value string) int {
 
 func normalizeColor(value string) string {
 	value = strings.ToLower(strings.TrimSpace(value))
+
 	colors := map[string]string{
 		"red": "#e53935", "#ff0000": "#e53935", "#e31e24": "#e53935",
 		"blue": "#1976d2", "#0000ff": "#1976d2", "#0078bf": "#1976d2",
@@ -291,5 +366,16 @@ func normalizeColor(value string) string {
 		"purple": "#8e44ad", "#800080": "#8e44ad", "#702082": "#8e44ad",
 		"brown": "#795548", "#a0522d": "#795548", "#8d5b2d": "#795548",
 	}
-	return colors[value]
+
+	if color, ok := colors[value]; ok {
+		return color
+	}
+
+	if len(value) == 7 && value[0] == '#' {
+		if _, err := strconv.ParseUint(value[1:], 16, 24); err == nil {
+			return value
+		}
+	}
+
+	return ""
 }

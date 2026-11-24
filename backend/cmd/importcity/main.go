@@ -9,11 +9,16 @@ import (
 	"os"
 	"time"
 
+	"github.com/joho/godotenv"
 	"github.com/robozmey/podzemka/backend/internal/domain"
 	"github.com/robozmey/podzemka/backend/internal/repository"
 )
 
 func main() {
+	if err := godotenv.Load(); err != nil && !os.IsNotExist(err) {
+		log.Fatal(err)
+	}
+
 	file := flag.String("file", "", "путь к JSON-файлу схемы")
 	name := flag.String("name", "", "название города")
 	slug := flag.String("slug", "", "slug города")
